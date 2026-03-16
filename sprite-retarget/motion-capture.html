@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Motion Capture Studio</title>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js" crossorigin="anonymous"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap');
+:root{--b0:#0a0a0f;--b1:#12121a;--b3:#1e1e2e;--bd:#2a2a3e;--t:#e8e8f0;--t2:#8888a8;--t3:#5a5a78;--ac:#4ecdc4;--ac2:#4ecdc444;--gn:#3ddc84}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'JetBrains Mono',monospace;background:var(--b0);color:var(--t);height:100vh;overflow:hidden;user-select:none}
+.hdr{height:44px;background:var(--b1);border-bottom:1px solid var(--bd);display:flex;align-items:center;padding:0 16px;gap:12px}
+.hdr h1{font-size:12px;font-weight:600;color:var(--ac)}.hdr .st{font-size:11px;color:var(--t2);margin-left:auto}.hdr .st.ok{color:var(--gn)}
+.main{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 44px)}
+.pnl{background:var(--b1);border-right:1px solid var(--bd);overflow-y:auto;padding:0}
+.sec{padding:16px;border-bottom:1px solid var(--bd)}.sec h3{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--t3);margin-bottom:10px}
+.btn{display:flex;align-items:center;justify-content:center;padding:8px 14px;border:1px solid var(--bd);border-radius:5px;background:var(--b3);color:var(--t);font-family:inherit;font-size:11px;cursor:pointer;width:100%;margin-top:6px}
+.btn.p{background:var(--ac);border-color:var(--ac);color:#000;font-weight:600}.btn.p:disabled{opacity:.35;cursor:not-allowed}
+.drp{border:2px dashed var(--bd);border-radius:6px;padding:24px 12px;text-align:center;cursor:pointer}
+.drp:hover{border-color:var(--ac);background:var(--ac2)}.drp input{display:none}
+.drp .lb{font-size:11px;color:var(--t2)}.drp .sb{font-size:9px;color:var(--t3);margin-top:3px}
+.drp.ok{border-color:var(--gn);border-style:solid}.drp.ok .lb{color:var(--gn)}
+.cvs{position:relative;overflow:hidden;background:var(--b0)}.cvs canvas{position:absolute;top:0;left:0}
+.pb{height:52px;background:var(--b1);border-top:1px solid var(--bd);display:flex;align-items:center;padding:0 14px;gap:10px}
+.ply{width:30px;height:30px;border-radius:50%;background:var(--ac);border:none;cursor:pointer;color:#000;font-size:13px}
+input[type=range]{-webkit-appearance:none;height:3px;background:var(--bd);border-radius:2px;outline:none;flex:1}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--ac);cursor:pointer}
+.fl{font-size:10px;color:var(--t2);min-width:70px;text-align:right;font-variant-numeric:tabular-nums}
+.sr{display:flex;align-items:center;gap:6px;margin-bottom:8px}.sr label{font-size:10px;color:var(--t2);min-width:60px}.sr .v{font-size:10px;color:var(--t3);min-width:25px;text-align:right}
+.prg{width:100%;height:4px;background:var(--bd);border-radius:2px;overflow:hidden;margin-top:8px}.prg .f{height:100%;background:var(--ac);transition:width .1s}
+.inf{background:var(--b3);border:1px solid var(--bd);border-radius:5px;padding:10px 12px;font-size:10px;color:var(--t2);line-height:1.6;margin-top:8px}
+pre{background:var(--b3);border:1px solid var(--bd);border-radius:4px;padding:8px;font-size:9px;color:var(--t3);overflow:auto;max-height:200px;margin-top:8px;white-space:pre-wrap}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px}.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="hdr"><h1>MOTION CAPTURE STUDIO</h1><span class="st" id="status">load a video</span></div>
+<div class="main">
+<div class="pnl">
+  <div class="sec"><h3>Video Input</h3>
+    <div class="drp" id="vDrp"><div style="font-size:22px;margin-bottom:6px">🎬</div><div class="lb">Drop video here</div><div class="sb">MP4, WebM</div><input type="file" id="vIn" accept="video/*"></div>
+  </div>
+  <div class="sec"><h3>Detection Settings</h3>
+    <div class="sr"><label>Complexity</label><input type="range" id="sCx" min="0" max="2" value="2"><span class="v" id="sCxV">2</span></div>
+    <div class="sr"><label>Smoothing</label><input type="range" id="sSm" min="0" max="10" value="3"><span class="v" id="sSmV">3</span></div>
+    <div class="sr"><label>Sample FPS</label><input type="range" id="sFps" min="6" max="24" value="12"><span class="v" id="sFpsV">12</span></div>
+    <button class="btn p" id="bDet" disabled>Detect Skeleton</button>
+    <div class="prg hidden" id="prg"><div class="f"></div></div>
+  </div>
+  <div class="sec"><h3>Results</h3>
+    <div class="inf" id="rInf">No detection yet.</div>
+    <button class="btn p" id="bExp" disabled>Export Pose Data (JSON)</button>
+  </div>
+  <div class="sec"><h3>Data Preview</h3>
+    <pre id="preview">—</pre>
+  </div>
+</div>
+<div style="display:flex;flex-direction:column;overflow:hidden">
+  <div class="cvs" id="cvs" style="flex:1"><canvas id="mc"></canvas></div>
+  <div class="pb"><button class="ply" id="plB">▶</button><input type="range" id="tl" min="0" max="0" value="0"><span class="fl" id="fL">0 / 0</span></div>
+</div>
+</div>
+<video id="vid" style="display:none"></video><canvas id="oC" style="display:none"></canvas>
+<script>
+const $=id=>document.getElementById(id);
+const mc=$('mc'),ctx=mc.getContext('2d'),cvs=$('cvs');
+const vid=$('vid'),oC=$('oC'),oX=oC.getContext('2d');
+
+// Joint mapping: 13 from MediaPipe + 2 virtual = 15
+const MP_IDX=[0,11,12,13,14,15,16,23,24,25,26,27,28];
+const NJ=15;
+const J_NAMES=['Head','L Shoulder','R Shoulder','L Elbow','R Elbow','L Wrist','R Wrist',
+  'L Hip','R Hip','L Knee','R Knee','L Ankle','R Ankle','Neck','Pelvis'];
+const BONES=[[13,0],[13,1],[13,2],[1,2],[1,3],[3,5],[2,4],[4,6],[14,13],[14,7],[14,8],[7,8],[7,9],[9,11],[8,10],[10,12]];
+
+let S={vFrames:[],vW:0,vH:0,vPose:[],fr:0,total:0,playing:false,pose:null};
+
+function st(t){$('status').textContent=t;$('status').classList.toggle('ok',t.includes('detected')||t.includes('exported'));}
+
+// File loading
+function setupDrop(z,inp,fn){
+  z.addEventListener('click',e=>{if(e.target!==inp){e.preventDefault();e.stopPropagation();inp.value='';inp.click();}});
+  z.addEventListener('dragover',e=>e.preventDefault());
+  z.addEventListener('drop',e=>{e.preventDefault();if(e.dataTransfer.files.length)fn(e.dataTransfer.files[0]);});
+  inp.addEventListener('change',()=>{if(inp.files.length)fn(inp.files[0]);});
+}
+function loadVideo(f){
+  st('loading...');$('vDrp').querySelector('.lb').textContent='Loading...';
+  const r=new FileReader();r.onload=e=>{
+    vid.src=e.target.result;vid.muted=true;vid.playsInline=true;vid.preload='auto';
+    vid.onerror=()=>st('video error');
+    vid.onloadeddata=()=>{S.vW=vid.videoWidth;S.vH=vid.videoHeight;
+      $('vDrp').classList.add('ok');$('vDrp').querySelector('.lb').textContent=`${f.name} (${vid.duration.toFixed(1)}s)`;
+      st('extracting frames...');exFrames();};vid.load();
+  };r.readAsDataURL(f);
+}
+async function exFrames(){
+  const fps=parseInt($('sFps').value);
+  const tot=Math.min(Math.floor(vid.duration*fps),300);
+  oC.width=S.vW;oC.height=S.vH;S.vFrames=[];S.total=tot;
+  for(let i=0;i<tot;i++){
+    vid.currentTime=i/fps;
+    await new Promise(r=>{const t=setTimeout(()=>{vid.removeEventListener('seeked',h);r();},2000);function h(){clearTimeout(t);vid.removeEventListener('seeked',h);r();}vid.addEventListener('seeked',h);});
+    oX.drawImage(vid,0,0);S.vFrames.push(oX.getImageData(0,0,S.vW,S.vH));
+    if(i%5===0){st(`frames ${i+1}/${tot}`);await new Promise(r=>setTimeout(r,0));}
+  }
+  $('tl').max=tot-1;$('tl').value=0;S.fr=0;$('fL').textContent=`0 / ${tot}`;
+  st(`${tot} frames @ ${fps}fps`);$('bDet').disabled=false;render();
+}
+setupDrop($('vDrp'),$('vIn'),loadVideo);
+
+// MediaPipe
+async function initPose(){
+  if(S.pose)return;st('loading pose model...');
+  const cx=parseInt($('sCx').value);
+  const p=new Pose({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${f}`});
+  p.setOptions({modelComplexity:cx,smoothLandmarks:true,minDetectionConfidence:.5,minTrackingConfidence:.5});
+  const dc=document.createElement('canvas');dc.width=64;dc.height=64;
+  await new Promise((res,rej)=>{p.onResults(()=>res());p.send({image:dc}).catch(rej);});
+  S.pose=p;st('pose model ready');
+}
+async function detect(){
+  if(!S.vFrames.length)return;await initPose();
+  S.vPose=[];const tot=S.vFrames.length;
+  $('prg').classList.remove('hidden');$('bDet').disabled=true;
+  const tc=document.createElement('canvas');tc.width=S.vW;tc.height=S.vH;const tctx=tc.getContext('2d');
+  for(let i=0;i<tot;i++){
+    tctx.putImageData(S.vFrames[i],0,0);
+    const r=await new Promise(res=>{S.pose.onResults(res);S.pose.send({image:tc});});
+    if(r.poseLandmarks){
+      const lm=r.poseLandmarks;
+      const j=MP_IDX.map(idx=>({x:+lm[idx].x.toFixed(5),y:+lm[idx].y.toFixed(5),v:+lm[idx].visibility.toFixed(3)}));
+      j.push({x:+((j[1].x+j[2].x)/2).toFixed(5),y:+((j[1].y+j[2].y)/2).toFixed(5),v:1});
+      j.push({x:+((j[7].x+j[8].x)/2).toFixed(5),y:+((j[7].y+j[8].y)/2).toFixed(5),v:1});
+      S.vPose.push(j);
+    } else {
+      S.vPose.push(S.vPose.length?S.vPose[S.vPose.length-1]:null);
+    }
+    $('prg').querySelector('.f').style.width=Math.round((i+1)/tot*100)+'%';
+    if(i%3===0){st(`detecting ${Math.round((i+1)/tot*100)}%`);await new Promise(r=>setTimeout(r,0));}
+  }
+  // Smooth
+  const sm=parseInt($('sSm').value);
+  if(sm>0){const out=[];for(let i=0;i<S.vPose.length;i++){if(!S.vPose[i]){out.push(null);continue;}
+    out.push(S.vPose[i].map((lm,j)=>{let sx=0,sy=0,c=0;
+      for(let k=Math.max(0,i-sm);k<=Math.min(S.vPose.length-1,i+sm);k++){if(S.vPose[k]){sx+=S.vPose[k][j].x;sy+=S.vPose[k][j].y;c++;}}
+      return{x:+( sx/c).toFixed(5),y:+(sy/c).toFixed(5),v:lm.v};}));}S.vPose=out;}
+  $('prg').classList.add('hidden');
+  const valid=S.vPose.filter(Boolean).length;
+  $('rInf').textContent=`Detected ${valid}/${tot} frames, ${NJ} joints per frame, ${parseInt($('sFps').value)} fps.`;
+  st(`detected ${valid} frames`);$('bDet').disabled=false;$('bExp').disabled=false;
+  // Preview data
+  if(S.vPose[0])$('preview').textContent=JSON.stringify(S.vPose[0].map((j,i)=>({joint:J_NAMES[i],x:j.x,y:j.y})),null,1);
+  render();
+}
+$('bDet').addEventListener('click',detect);
+
+// Export
+$('bExp').addEventListener('click',()=>{
+  const data={
+    version:2,
+    fps:parseInt($('sFps').value),
+    frameCount:S.vPose.length,
+    jointCount:NJ,
+    jointNames:J_NAMES,
+    videoSize:{w:S.vW,h:S.vH},
+    bones:BONES,
+    frames:S.vPose
+  };
+  const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
+  const a=document.createElement('a');a.download='motion_data.json';a.href=URL.createObjectURL(blob);a.click();
+  st('exported pose data');
+});
+
+// Rendering
+function resize(){const r=cvs.getBoundingClientRect();mc.width=r.width;mc.height=r.height;render();}
+function render(){
+  ctx.clearRect(0,0,mc.width,mc.height);
+  const f=S.vFrames[S.fr];if(!f)return;
+  const cw=mc.width,ch=mc.height,p=30;
+  const s=Math.min((cw-p*2)/S.vW,(ch-p*2)/S.vH);
+  const ox=(cw-S.vW*s)/2,oy=(ch-S.vH*s)/2;
+  oC.width=S.vW;oC.height=S.vH;oX.putImageData(f,0,0);
+  ctx.drawImage(oC,ox,oy,S.vW*s,S.vH*s);
+  // Draw skeleton
+  if(S.vPose[S.fr]){
+    const pose=S.vPose[S.fr];const w=S.vW*s,h=S.vH*s;
+    ctx.strokeStyle='rgba(78,205,196,0.8)';ctx.lineWidth=2;
+    for(const[a,b]of BONES){if(pose[a]&&pose[b]){ctx.beginPath();ctx.moveTo(ox+pose[a].x*w,oy+pose[a].y*h);ctx.lineTo(ox+pose[b].x*w,oy+pose[b].y*h);ctx.stroke();}}
+    pose.forEach((l,i)=>{if(l&&l.v>0.3){ctx.fillStyle=i>=13?'#ff6b3d':'#4ecdc4';ctx.beginPath();ctx.arc(ox+l.x*w,oy+l.y*h,4,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#fff';ctx.font='8px JetBrains Mono';ctx.fillText(J_NAMES[i],ox+l.x*w+6,oy+l.y*h+3);}});
+  }
+}
+
+// Playback
+let plI=null;
+$('plB').addEventListener('click',()=>{
+  if(S.playing){clearInterval(plI);S.playing=false;$('plB').textContent='▶';}
+  else{S.playing=true;$('plB').textContent='⏸';plI=setInterval(()=>{S.fr=(S.fr+1)%S.total;$('tl').value=S.fr;$('fL').textContent=`${S.fr} / ${S.total}`;render();},1000/parseInt($('sFps').value));}
+});
+$('tl').addEventListener('input',()=>{S.fr=parseInt($('tl').value);$('fL').textContent=`${S.fr} / ${S.total}`;render();});
+
+// Settings
+$('sCx').oninput=e=>$('sCxV').textContent=e.target.value;
+$('sSm').oninput=e=>$('sSmV').textContent=e.target.value;
+$('sFps').oninput=e=>$('sFpsV').textContent=e.target.value;
+
+window.addEventListener('resize',resize);resize();
+</script>
+</body>
+</html>
