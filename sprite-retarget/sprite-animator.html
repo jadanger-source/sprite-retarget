@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sprite Animator</title>
+<style>
+:root{--b0:#0a0a0f;--b1:#12121a;--b3:#1e1e2e;--bd:#2a2a3e;--t:#e8e8f0;--t2:#8888a8;--t3:#5a5a78;--ac:#4ecdc4;--ac2:#4ecdc422;--gn:#3ddc84;--rd:#ff6b6b}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'JetBrains Mono',monospace,sans-serif;background:var(--b0);color:var(--t);height:100vh;overflow:hidden;user-select:none}
+.hdr{height:44px;background:var(--b1);border-bottom:1px solid var(--bd);display:flex;align-items:center;padding:0 16px;gap:12px}
+.hdr h1{font-size:12px;font-weight:600;color:var(--ac)}.hdr .st{font-size:11px;color:var(--t2);margin-left:auto}
+.hdr .st.ok{color:var(--gn)}.hdr .st.err{color:var(--rd)}
+.main{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 44px)}
+.pnl{background:var(--b1);border-right:1px solid var(--bd);overflow-y:auto;display:flex;flex-direction:column}
+.sec{padding:12px 14px;border-bottom:1px solid var(--bd)}.sec h3{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--t3);margin-bottom:8px}
+.drp{border:2px dashed var(--bd);border-radius:6px;padding:16px 12px;text-align:center;cursor:pointer;transition:all .15s}
+.drp:hover,.drp.over{border-color:var(--ac);background:var(--ac2)}.drp input{display:none}
+.drp .lb{font-size:11px;color:var(--t2)}.drp .sb{font-size:9px;color:var(--t3);margin-top:2px}
+.drp.ok{border-color:var(--gn);border-style:solid}.drp.ok .lb{color:var(--gn)}
+.btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:7px 12px;border:1px solid var(--bd);border-radius:5px;background:var(--b3);color:var(--t);font-family:inherit;font-size:11px;cursor:pointer;width:100%;margin-top:6px;transition:all .15s}
+.btn:hover{border-color:var(--ac)}.btn.p{background:var(--ac);border-color:var(--ac);color:#000;font-weight:600}
+.btn.p:hover{opacity:.9}.btn:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+.sr{display:flex;align-items:center;gap:6px;margin-bottom:6px}.sr label{font-size:10px;color:var(--t2);min-width:80px}
+.sr input[type=range]{-webkit-appearance:none;flex:1;height:3px;background:var(--bd);border-radius:2px;outline:none}
+.sr input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:var(--ac);cursor:pointer}
+.sr .v{font-size:10px;color:var(--t3);min-width:28px;text-align:right}
+.prg{width:100%;height:3px;background:var(--bd);border-radius:2px;overflow:hidden;margin-top:8px}
+.prg .f{height:100%;background:var(--ac);transition:width .05s;width:0}
+.inf{font-size:10px;color:var(--t3);margin-top:6px}
+.right{display:flex;flex-direction:column;overflow:hidden;background:var(--b0)}
+.cvs-wrap{flex:1;position:relative;overflow:hidden;background:#111}
+#mainCanvas{display:block;cursor:crosshair}
+.pb{height:50px;background:var(--b1);border-top:1px solid var(--bd);display:flex;align-items:center;padding:0 12px;gap:8px;flex-shrink:0}
+.ply{width:28px;height:28px;border-radius:50%;background:var(--ac);border:none;cursor:pointer;color:#000;font-size:12px;flex-shrink:0}
+.ply:hover{opacity:.9}
+#timeline{-webkit-appearance:none;flex:1;height:3px;background:var(--bd);border-radius:2px;outline:none}
+#timeline::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--ac);cursor:pointer}
+.fl{font-size:10px;color:var(--t2);min-width:55px;text-align:right}
+.tabs{display:flex;border-bottom:1px solid var(--bd)}
+.tab{flex:1;padding:8px;font-size:10px;color:var(--t3);cursor:pointer;text-align:center;border-bottom:2px solid transparent;transition:all .1s}
+.tab.active{color:var(--ac);border-bottom-color:var(--ac)}
+.tab-pane{display:none}.tab-pane.active{display:block}
+.joint-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border-radius:4px;font-size:9px;cursor:pointer;border:1px solid var(--bd);background:var(--b3);color:var(--t2);margin:2px}
+.joint-chip.sel{border-color:var(--ac);color:var(--ac);background:var(--ac2)}
+</style>
+</head>
+<body>
+<div class="hdr"><h1>SPRITE ANIMATOR</h1><span class="st" id="status">load sprite + pose JSON</span></div>
+<div class="main">
+<div class="pnl">
+  <div class="sec"><h3>Files</h3>
+    <div class="drp" id="spriteDrp"><div style="font-size:18px;margin-bottom:4px">🧍</div><div class="lb">Drop Sprite PNG</div><div class="sb">785×1302 recommended</div><input type="file" id="spriteIn" accept="image/png,image/gif"></div>
+    <div class="drp" style="margin-top:8px" id="jsonDrp"><div style="font-size:18px;margin-bottom:4px">📊</div><div class="lb">Drop Pose JSON</div><div class="sb">motion_data.json</div><input type="file" id="jsonIn" accept=".json"></div>
+  </div>
+  <div class="sec">
+    <div class="tabs">
+      <div class="tab active" data-tab="joints">Joints</div>
+      <div class="tab" data-tab="settings">Settings</div>
+      <div class="tab" data-tab="export">Export</div>
+    </div>
+    <div class="tab-pane active" id="tab-joints" style="padding-top:8px">
+      <div class="inf">Click joints to select, drag on canvas to reposition</div>
+      <div id="jointChips" style="margin-top:8px"></div>
+      <button class="btn" id="resetJoints" style="margin-top:8px">Reset to Defaults</button>
+      <button class="btn p" id="buildMeshBtn" disabled style="margin-top:6px">Build Mesh &amp; Animate</button>
+      <div class="prg" id="buildPrg"><div class="f" id="buildPrgF"></div></div>
+      <div class="inf" id="meshInfo"></div>
+    </div>
+    <div class="tab-pane" id="tab-settings" style="padding-top:8px">
+      <div class="sr"><label>Mesh Density</label><input type="range" id="meshDensity" min="8" max="30" value="16"><span class="v" id="meshDensityV">16</span></div>
+      <div class="sr"><label>Joint Blend</label><input type="range" id="blendRadius" min="5" max="40" value="20"><span class="v" id="blendRadiusV">20</span></div>
+      <div class="sr"><label>Y Scale</label><input type="range" id="yScale" min="0" max="200" value="100"><span class="v" id="yScaleV">1.0</span></div>
+      <div class="sr"><label>Show Mesh</label><input type="range" id="showMesh" min="0" max="1" value="0"><span class="v" id="showMeshV">off</span></div>
+      <div class="sr"><label>Show Skel</label><input type="range" id="showSkel" min="0" max="1" value="0"><span class="v" id="showSkelV">off</span></div>
+    </div>
+    <div class="tab-pane" id="tab-export" style="padding-top:8px">
+      <div class="sr"><label>Columns</label><input type="range" id="expCols" min="1" max="16" value="8"><span class="v" id="expColsV">8</span></div>
+      <div class="sr"><label>Scale</label><input type="range" id="expScale" min="1" max="4" value="1"><span class="v" id="expScaleV">1×</span></div>
+      <button class="btn p" id="exportBtn" disabled>Export Sprite Sheet</button>
+      <div class="inf" id="exportInfo"></div>
+    </div>
+  </div>
+</div>
+<div class="right">
+  <div class="cvs-wrap" id="canvasWrap">
+    <canvas id="mainCanvas"></canvas>
+  </div>
+  <div class="pb">
+    <button class="ply" id="playBtn">▶</button>
+    <input type="range" id="timeline" min="0" max="0" value="0">
+    <span class="fl" id="frameLabel">0 / 0</span>
+  </div>
+</div>
+</div>
+<script>
+// ─── Constants ───────────────────────────────────────────────────────────────
+const J = { HEAD:0, LS:1, RS:2, LE:3, RE:4, LW:5, RW:6, LH:7, RH:8, LK:9, RK:10, LA:11, RA:12, NECK:13, PELVIS:14 };
+const J_NAMES = ['Head','L Shoulder','R Shoulder','L Elbow','R Elbow','L Wrist','R Wrist','L Hip','R Hip','L Knee','R Knee','L Ankle','R Ankle','Neck','Pelvis'];
+const J_COLORS = ['#ff9f43','#48dbfb','#ff6b9d','#48dbfb','#ff6b9d','#48dbfb','#ff6b9d','#54a0ff','#ee5a24','#54a0ff','#ee5a24','#54a0ff','#ee5a24','#ffd32a','#c8d6e5'];
+
+// Default joint positions (normalized to sprite)
+const DEFAULT_JOINTS = [
+  {x:0.50,y:0.08},{x:0.22,y:0.33},{x:0.77,y:0.33},
+  {x:0.15,y:0.49},{x:0.84,y:0.49},{x:0.11,y:0.63},
+  {x:0.87,y:0.63},{x:0.36,y:0.49},{x:0.60,y:0.49},
+  {x:0.33,y:0.78},{x:0.64,y:0.78},{x:0.31,y:0.92},
+  {x:0.67,y:0.94},{x:0.50,y:0.28},{x:0.50,y:0.49}
+];
+
+// 10 rendering bones: {boneId, pivot, end, layer}
+// layer: 0=legs, 1=torso/head, 2=arms
+const BONE_DEFS = [
+  {id:0,name:'head',     pivot:J.NECK,  end:J.HEAD, layer:1},
+  {id:1,name:'torso',    pivot:J.PELVIS,end:J.NECK, layer:1},
+  {id:2,name:'upperArmL',pivot:J.LS,   end:J.LE,   layer:2},
+  {id:3,name:'forearmL', pivot:J.LE,   end:J.LW,   layer:2},
+  {id:4,name:'upperArmR',pivot:J.RS,   end:J.RE,   layer:2},
+  {id:5,name:'forearmR', pivot:J.RE,   end:J.RW,   layer:2},
+  {id:6,name:'thighL',   pivot:J.LH,   end:J.LK,   layer:0},
+  {id:7,name:'shinL',    pivot:J.LK,   end:J.LA,   layer:0},
+  {id:8,name:'thighR',   pivot:J.RH,   end:J.RK,   layer:0},
+  {id:9,name:'shinR',    pivot:J.RK,   end:J.RA,   layer:0},
+];
+
+// Mirror map: swap L/R to fix MediaPipe handedness, then flip x
+const MIRROR_IDX = [0,2,1,4,3,6,5,8,7,10,9,12,11,13,14];
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let state = {
+  spriteImg: null, spriteW: 0, spriteH: 0,
+  poseData: null,
+  joints: DEFAULT_JOINTS.map(j=>({...j})),
+  selectedJoint: -1,
+  mesh: null,          // {verts, tris, boneAssign}
+  frames: [],          // pre-computed per-frame vertex positions
+  currentFrame: 0,
+  playing: false,
+  animTimer: null,
+  alphaMap: null,      // Uint8Array
+  lastBuildSettings: null,
+};
+
+// ─── DOM refs ─────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('mainCanvas');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('canvasWrap');
+const statusEl = document.getElementById('status');
+const playBtn = document.getElementById('playBtn');
+const timeline = document.getElementById('timeline');
+const frameLabel = document.getElementById('frameLabel');
+const buildMeshBtn = document.getElementById('buildMeshBtn');
+const buildPrgF = document.getElementById('buildPrgF');
+const meshInfo = document.getElementById('meshInfo');
+const exportBtn = document.getElementById('exportBtn');
+const exportInfo = document.getElementById('exportInfo');
+
+// ─── Status ───────────────────────────────────────────────────────────────────
+function setStatus(msg, type='') {
+  statusEl.textContent = msg;
+  statusEl.className = 'st' + (type ? ' '+type : '');
+}
+
+// ─── File drop setup ──────────────────────────────────────────────────────────
+function setupDrop(zone, inp, onFile) {
+  zone.addEventListener('click', e => { if(e.target !== inp){e.preventDefault(); inp.value=''; inp.click();} });
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('over'));
+  zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('over'); if(e.dataTransfer.files[0]) onFile(e.dataTransfer.files[0]); });
+  inp.addEventListener('change', () => { if(inp.files[0]) onFile(inp.files[0]); });
+}
+
+setupDrop(document.getElementById('spriteDrp'), document.getElementById('spriteIn'), loadSprite);
+setupDrop(document.getElementById('jsonDrp'), document.getElementById('jsonIn'), loadJSON);
+
+function loadSprite(file) {
+  const drp = document.getElementById('spriteDrp');
+  drp.querySelector('.lb').textContent = 'Loading...';
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    state.spriteImg = img;
+    state.spriteW = img.width;
+    state.spriteH = img.height;
+    extractAlpha(img);
+    drp.classList.add('ok');
+    drp.querySelector('.lb').textContent = `${file.name} (${img.width}×${img.height})`;
+    setStatus('sprite loaded', 'ok');
+    buildMeshBtn.disabled = !state.poseData;
+    renderSetup();
+    drawFrame();
+  };
+  img.onerror = () => setStatus('failed to load image', 'err');
+  img.src = url;
+}
+
+function loadJSON(file) {
+  const drp = document.getElementById('jsonDrp');
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.frames || !data.fps) throw new Error('invalid pose JSON');
+      state.poseData = data;
+      // Mirror all frames
+      state.poseData.mirrored = data.frames.map(frame => mirrorFrame(frame));
+      drp.classList.add('ok');
+      drp.querySelector('.lb').textContent = `${file.name} (${data.frameCount}f @ ${data.fps}fps)`;
+      timeline.max = data.frameCount - 1;
+      timeline.value = 0;
+      frameLabel.textContent = `1 / ${data.frameCount}`;
+      setStatus(`pose loaded: ${data.frameCount} frames`, 'ok');
+      buildMeshBtn.disabled = !state.spriteImg;
+    } catch(err) {
+      setStatus('invalid JSON: '+err.message, 'err');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function mirrorFrame(frame) {
+  return MIRROR_IDX.map(i => ({
+    x: 1 - frame[i].x,
+    y: frame[i].y,
+    v: frame[i].v
+  }));
+}
+
+// ─── Alpha map ─────────────────────────────────────────────────────────────────
+function extractAlpha(img) {
+  const oc = document.createElement('canvas');
+  oc.width = img.width; oc.height = img.height;
+  const ox = oc.getContext('2d');
+  ox.drawImage(img, 0, 0);
+  const d = ox.getImageData(0, 0, img.width, img.height).data;
+  state.alphaMap = new Uint8Array(img.width * img.height);
+  for (let i = 0; i < state.alphaMap.length; i++) state.alphaMap[i] = d[i*4+3];
+}
+
+function getAlpha(x, y) {
+  const ix = Math.round(Math.max(0, Math.min(state.spriteW-1, x)));
+  const iy = Math.round(Math.max(0, Math.min(state.spriteH-1, y)));
+  return state.alphaMap[iy * state.spriteW + ix];
+}
+
+// ─── Canvas sizing ────────────────────────────────────────────────────────────
+let viewScale = 1, viewOffX = 0, viewOffY = 0;
+
+function renderSetup() {
+  if (!state.spriteImg) return;
+  const ww = wrap.clientWidth, wh = wrap.clientHeight;
+  canvas.width = ww; canvas.height = wh;
+  const scaleX = ww / state.spriteW, scaleY = wh / state.spriteH;
+  viewScale = Math.min(scaleX, scaleY) * 0.95;
+  viewOffX = (ww - state.spriteW * viewScale) / 2;
+  viewOffY = (wh - state.spriteH * viewScale) / 2;
+}
+
+window.addEventListener('resize', () => { renderSetup(); drawFrame(); });
+
+// ─── Joint UI ─────────────────────────────────────────────────────────────────
+function buildJointChips() {
+  const cont = document.getElementById('jointChips');
+  cont.innerHTML = '';
+  J_NAMES.forEach((name, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'joint-chip' + (state.selectedJoint === i ? ' sel' : '');
+    chip.style.borderColor = (state.selectedJoint === i) ? J_COLORS[i] : '';
+    chip.textContent = name;
+    chip.addEventListener('click', () => {
+      state.selectedJoint = (state.selectedJoint === i) ? -1 : i;
+      buildJointChips();
+      drawFrame();
+    });
+    cont.appendChild(chip);
+  });
+}
+buildJointChips();
+
+document.getElementById('resetJoints').addEventListener('click', () => {
+  state.joints = DEFAULT_JOINTS.map(j=>({...j}));
+  state.mesh = null; state.frames = [];
+  buildMeshBtn.disabled = !state.poseData || !state.spriteImg;
+  exportBtn.disabled = true;
+  drawFrame();
+});
+
+// ─── Canvas mouse interaction ──────────────────────────────────────────────────
+let dragging = -1, dragStartX = 0, dragStartY = 0;
+
+canvas.addEventListener('mousedown', e => {
+  if (!state.spriteImg) return;
+  const {sx, sy} = canvasToSprite(e.offsetX, e.offsetY);
+  let best = -1, bestD = 20 / viewScale; // 20px threshold
+  state.joints.forEach((j, i) => {
+    const d = Math.hypot(j.x * state.spriteW - sx, j.y * state.spriteH - sy);
+    if (d < bestD) { bestD = d; best = i; }
+  });
+  if (best >= 0) {
+    dragging = best;
+    state.selectedJoint = best;
+    buildJointChips();
+  }
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (dragging < 0 || !state.spriteImg) return;
+  const {sx, sy} = canvasToSprite(e.offsetX, e.offsetY);
+  state.joints[dragging] = {
+    x: Math.max(0, Math.min(1, sx / state.spriteW)),
+    y: Math.max(0, Math.min(1, sy / state.spriteH))
+  };
+  // Recompute virtual joints
+  state.joints[J.NECK] = {
+    x: (state.joints[J.LS].x + state.joints[J.RS].x) / 2,
+    y: (state.joints[J.LS].y + state.joints[J.RS].y) / 2
+  };
+  state.joints[J.PELVIS] = {
+    x: (state.joints[J.LH].x + state.joints[J.RH].x) / 2,
+    y: (state.joints[J.LH].y + state.joints[J.RH].y) / 2
+  };
+  if (state.mesh) { state.mesh = null; state.frames = []; exportBtn.disabled = true; }
+  drawFrame();
+});
+
+canvas.addEventListener('mouseup', () => { dragging = -1; });
+canvas.addEventListener('mouseleave', () => { dragging = -1; });
+
+function canvasToSprite(cx, cy) {
+  return { sx: (cx - viewOffX) / viewScale, sy: (cy - viewOffY) / viewScale };
+}
+function spriteToCanvas(sx, sy) {
+  return { cx: sx * viewScale + viewOffX, cy: sy * viewScale + viewOffY };
+}
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-'+tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ─── Sliders ──────────────────────────────────────────────────────────────────
+function bindSlider(id, valId, fmt) {
+  const sl = document.getElementById(id), vl = document.getElementById(valId);
+  vl.textContent = fmt(sl.value);
+  sl.addEventListener('input', () => { vl.textContent = fmt(sl.value); });
+  return sl;
+}
+bindSlider('meshDensity','meshDensityV', v => v+'px');
+bindSlider('blendRadius','blendRadiusV', v => v+'px');
+bindSlider('yScale','yScaleV', v => (v/100).toFixed(2));
+bindSlider('showMesh','showMeshV', v => +v ? 'on' : 'off');
+bindSlider('showSkel','showSkelV', v => +v ? 'on' : 'off');
+bindSlider('expCols','expColsV', v => v);
+bindSlider('expScale','expScaleV', v => v+'×');
+
+// ─── Mesh Generation ──────────────────────────────────────────────────────────
+function generateMesh(spacing) {
+  const W = state.spriteW, H = state.spriteH;
+  const cols = Math.ceil(W / spacing) + 1;
+  const rows = Math.ceil(H / spacing) + 1;
+  const verts = []; // {x, y}
+  const vertGrid = new Array(rows * cols).fill(-1);
+
+  // Add grid vertices (only where sprite has pixels nearby)
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = Math.min(c * spacing, W);
+      const y = Math.min(r * spacing, H);
+      // check 3x3 neighborhood for alpha
+      let hasAlpha = false;
+      for (let dy = -spacing; dy <= spacing; dy += spacing) {
+        for (let dx = -spacing; dx <= spacing; dx += spacing) {
+          if (getAlpha(x+dx, y+dy) > 10) { hasAlpha = true; break; }
+        }
+        if (hasAlpha) break;
+      }
+      if (hasAlpha) {
+        vertGrid[r * cols + c] = verts.length;
+        verts.push({x, y});
+      }
+    }
+  }
+
+  // Add joint positions as extra vertices for accuracy
+  const jointVerts = state.joints.map(j => {
+    const x = j.x * W, y = j.y * H;
+    const idx = verts.length;
+    verts.push({x, y});
+    return idx;
+  });
+
+  // Generate triangles from grid
+  const tris = [];
+  for (let r = 0; r < rows - 1; r++) {
+    for (let c = 0; c < cols - 1; c++) {
+      const i00 = vertGrid[r*cols+c];
+      const i10 = vertGrid[(r+1)*cols+c];
+      const i01 = vertGrid[r*cols+(c+1)];
+      const i11 = vertGrid[(r+1)*cols+(c+1)];
+      if (i00>=0 && i10>=0 && i01>=0) tris.push([i00,i10,i01]);
+      if (i10>=0 && i11>=0 && i01>=0) tris.push([i10,i11,i01]);
+    }
+  }
+
+  return {verts, tris, jointVerts};
+}
+
+// ─── Bone Segmentation ────────────────────────────────────────────────────────
+function assignBones(verts) {
+  const W = state.spriteW, H = state.spriteH;
+  const jt = state.joints; // normalized
+  const jp = jt.map(j => ({x: j.x * W, y: j.y * H})); // pixel coords
+
+  const neckY   = jp[J.NECK].y;
+  const pelvisY = jp[J.PELVIS].y;
+  const lSX     = jp[J.LS].x, rSX = jp[J.RS].x;
+  const lHX     = jp[J.LH].x, rHX = jp[J.RH].x;
+  const blendR  = parseFloat(document.getElementById('blendRadius').value);
+
+  // For each vertex, find nearest bone segment distance
+  function boneSegDist(px, py, ax, ay, bx, by) {
+    const dx = bx-ax, dy = by-ay;
+    const lenSq = dx*dx+dy*dy;
+    if (lenSq === 0) return Math.hypot(px-ax, py-ay);
+    const t = Math.max(0, Math.min(1, ((px-ax)*dx+(py-ay)*dy)/lenSq));
+    return Math.hypot(px-(ax+t*dx), py-(ay+t*dy));
+  }
+
+  const assignments = new Int8Array(verts.length);
+
+  verts.forEach((v, i) => {
+    const {x, y} = v;
+
+    // Head zone: above neck line
+    if (y < neckY - blendR * 0.5) {
+      assignments[i] = 0; return;
+    }
+
+    // Leg zone: below pelvis
+    if (y > pelvisY + blendR * 0.5) {
+      const midX = (lHX + rHX) / 2;
+      if (x < midX) {
+        // Left leg
+        if (y < jp[J.LK].y) assignments[i] = 6; // thighL
+        else assignments[i] = 7; // shinL
+      } else {
+        // Right leg
+        if (y < jp[J.RK].y) assignments[i] = 8; // thighR
+        else assignments[i] = 9; // shinR
+      }
+      return;
+    }
+
+    // Middle zone: check torso vs arms
+    const torsoLeft  = Math.min(lSX, lHX);
+    const torsoRight = Math.max(rSX, rHX);
+
+    if (x >= torsoLeft - blendR && x <= torsoRight + blendR) {
+      // Could be torso (or head at boundary)
+      if (y < neckY + blendR * 0.5) assignments[i] = 0; // head blending zone
+      else assignments[i] = 1; // torso
+      return;
+    }
+
+    // Arm zones (outside torso bounds)
+    if (x < torsoLeft) {
+      // Left arm (viewer's left)
+      const dUA = boneSegDist(x, y, jp[J.LS].x, jp[J.LS].y, jp[J.LE].x, jp[J.LE].y);
+      const dFA = boneSegDist(x, y, jp[J.LE].x, jp[J.LE].y, jp[J.LW].x, jp[J.LW].y);
+      assignments[i] = dUA <= dFA ? 2 : 3;
+    } else {
+      // Right arm (viewer's right)
+      const dUA = boneSegDist(x, y, jp[J.RS].x, jp[J.RS].y, jp[J.RE].x, jp[J.RE].y);
+      const dFA = boneSegDist(x, y, jp[J.RE].x, jp[J.RE].y, jp[J.RW].x, jp[J.RW].y);
+      assignments[i] = dUA <= dFA ? 4 : 5;
+    }
+  });
+
+  // Assign joint verts to their bone's pivot (joint verts are appended at end)
+  // Actually joint verts inherit from nearest real bone — just leave as-is
+
+  return assignments;
+}
+
+// ─── FK Computation ───────────────────────────────────────────────────────────
+function boneAngle(joints, p, e) {
+  return Math.atan2(joints[e].y - joints[p].y, joints[e].x - joints[p].x);
+}
+
+function angleDelta(ref, frame, p, e) {
+  let d = boneAngle(frame, p, e) - boneAngle(ref, p, e);
+  while (d >  Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  return d;
+}
+
+function computeNewJoints(frameMotion) {
+  const W = state.spriteW, H = state.spriteH;
+  const ref = state.poseData.mirrored[0]; // frame 0 as motion reference
+  const yScaleFactor = parseFloat(document.getElementById('yScale').value) / 100;
+
+  // Sprite joint positions in pixels
+  const sp = state.joints.map(j => ({x: j.x * W, y: j.y * H}));
+
+  // Global Y translation from pelvis
+  const yDelta = (frameMotion[J.PELVIS].y - ref[J.PELVIS].y) * H * yScaleFactor;
+
+  // New joint positions start at sprite positions + global Y
+  const nj = sp.map(j => ({x: j.x, y: j.y + yDelta}));
+
+  function fk(parentIdx, childIdx, delta) {
+    const ox = sp[childIdx].x - sp[parentIdx].x;
+    const oy = sp[childIdx].y - sp[parentIdx].y;
+    const cos = Math.cos(delta), sin = Math.sin(delta);
+    nj[childIdx] = {
+      x: nj[parentIdx].x + ox * cos - oy * sin,
+      y: nj[parentIdx].y + ox * sin + oy * cos
+    };
+  }
+
+  // FK hierarchy (parent must be processed before child)
+  fk(J.PELVIS, J.NECK,  angleDelta(ref, frameMotion, J.PELVIS, J.NECK));
+  fk(J.PELVIS, J.LH,   angleDelta(ref, frameMotion, J.PELVIS, J.LH));
+  fk(J.PELVIS, J.RH,   angleDelta(ref, frameMotion, J.PELVIS, J.RH));
+  fk(J.NECK,   J.HEAD, angleDelta(ref, frameMotion, J.NECK,   J.HEAD));
+  fk(J.NECK,   J.LS,   angleDelta(ref, frameMotion, J.NECK,   J.LS));
+  fk(J.NECK,   J.RS,   angleDelta(ref, frameMotion, J.NECK,   J.RS));
+  fk(J.LS,     J.LE,   angleDelta(ref, frameMotion, J.LS,     J.LE));
+  fk(J.RS,     J.RE,   angleDelta(ref, frameMotion, J.RS,     J.RE));
+  fk(J.LE,     J.LW,   angleDelta(ref, frameMotion, J.LE,     J.LW));
+  fk(J.RE,     J.RW,   angleDelta(ref, frameMotion, J.RE,     J.RW));
+  fk(J.LH,     J.LK,   angleDelta(ref, frameMotion, J.LH,     J.LK));
+  fk(J.RH,     J.RK,   angleDelta(ref, frameMotion, J.RH,     J.RK));
+  fk(J.LK,     J.LA,   angleDelta(ref, frameMotion, J.LK,     J.LA));
+  fk(J.RK,     J.RA,   angleDelta(ref, frameMotion, J.RK,     J.RA));
+
+  return nj;
+}
+
+function transformVertex(v, boneId, newJoints, boneDeltas) {
+  const W = state.spriteW, H = state.spriteH;
+  const sp = state.joints.map(j => ({x: j.x * W, y: j.y * H}));
+  const bd = BONE_DEFS[boneId];
+  const pivotIdx = bd.pivot;
+  const delta = boneDeltas[boneId];
+
+  const ox = v.x - sp[pivotIdx].x;
+  const oy = v.y - sp[pivotIdx].y;
+  const cos = Math.cos(delta), sin = Math.sin(delta);
+
+  return {
+    x: newJoints[pivotIdx].x + ox * cos - oy * sin,
+    y: newJoints[pivotIdx].y + ox * sin + oy * cos
+  };
+}
+
+// ─── Build All Frames ─────────────────────────────────────────────────────────
+async function buildMesh() {
+  if (!state.spriteImg || !state.poseData) return;
+
+  buildMeshBtn.disabled = true;
+  setStatus('building mesh...', '');
+  buildPrgF.style.width = '5%';
+
+  await sleep(10);
+
+  const spacing = parseInt(document.getElementById('meshDensity').value);
+  const {verts, tris, jointVerts} = generateMesh(spacing);
+  const boneAssign = assignBones(verts);
+
+  buildPrgF.style.width = '20%';
+  meshInfo.textContent = `${verts.length} verts, ${tris.length} tris`;
+
+  await sleep(10);
+
+  // Precompute sprite joint positions in pixels
+  const W = state.spriteW, H = state.spriteH;
+  const sp = state.joints.map(j => ({x: j.x * W, y: j.y * H}));
+  const ref = state.poseData.mirrored[0];
+
+  // Pre-cache per-bone FK deltas for each frame
+  const allFrameData = [];
+  const totalFrames = state.poseData.mirrored.length;
+
+  for (let fi = 0; fi < totalFrames; fi++) {
+    if (fi % 5 === 0) {
+      buildPrgF.style.width = (20 + 70 * fi / totalFrames) + '%';
+      await sleep(0);
+    }
+
+    const frameMotion = state.poseData.mirrored[fi];
+    const newJoints = computeNewJoints(frameMotion);
+
+    // Compute per-bone world angle deltas for vertex transform
+    const boneDeltas = BONE_DEFS.map(bd => {
+      return angleDelta(ref, frameMotion, bd.pivot, bd.end);
+    });
+
+    // Transform all vertices
+    const transformed = verts.map((v, i) => {
+      return transformVertex(v, boneAssign[i], newJoints, boneDeltas);
+    });
+
+    allFrameData.push({newJoints, boneDeltas, transformed});
+  }
+
+  state.mesh = {verts, tris, boneAssign, jointVerts};
+  state.frames = allFrameData;
+  state.currentFrame = 0;
+
+  buildPrgF.style.width = '100%';
+  await sleep(50);
+  buildPrgF.style.width = '0';
+
+  timeline.max = totalFrames - 1;
+  timeline.value = 0;
+  frameLabel.textContent = `1 / ${totalFrames}`;
+
+  buildMeshBtn.disabled = false;
+  exportBtn.disabled = false;
+  setStatus(`animated: ${totalFrames} frames`, 'ok');
+  drawFrame();
+}
+
+buildMeshBtn.addEventListener('click', buildMesh);
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ─── Draw Frame ───────────────────────────────────────────────────────────────
+const DRAW_ORDER = [6,7,8,9,1,0,4,5,2,3]; // legs, torso, head, R arm, L arm (front)
+
+function drawFrame() {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  if (!state.spriteImg) {
+    ctx.fillStyle = '#1e1e2e';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#5a5a78';
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Drop sprite PNG and pose JSON to begin', W/2, H/2);
+    return;
+  }
+
+  ctx.save();
+  ctx.translate(viewOffX, viewOffY);
+  ctx.scale(viewScale, viewScale);
+
+  if (!state.mesh || !state.frames.length) {
+    // Just draw the sprite with joint overlay
+    ctx.drawImage(state.spriteImg, 0, 0);
+    drawJointOverlay(state.joints.map(j => ({x: j.x * state.spriteW, y: j.y * state.spriteH})));
+    ctx.restore();
+    return;
+  }
+
+  const fd = state.frames[state.currentFrame];
+  const {verts, tris, boneAssign} = state.mesh;
+  const transformed = fd.transformed;
+
+  // Draw triangles by layer order
+  ctx.imageSmoothingEnabled = false;
+  const showMesh = parseInt(document.getElementById('showMesh').value);
+
+  for (const boneId of DRAW_ORDER) {
+    for (const tri of tris) {
+      if (boneAssign[tri[0]] !== boneId && boneAssign[tri[1]] !== boneId && boneAssign[tri[2]] !== boneId) continue;
+      const s0 = verts[tri[0]], s1 = verts[tri[1]], s2 = verts[tri[2]];
+      const d0 = transformed[tri[0]], d1 = transformed[tri[1]], d2 = transformed[tri[2]];
+      drawTexTriangle(ctx, state.spriteImg, d0, d1, d2, s0, s1, s2);
+      if (showMesh) {
+        ctx.beginPath();
+        ctx.moveTo(d0.x, d0.y); ctx.lineTo(d1.x, d1.y); ctx.lineTo(d2.x, d2.y);
+        ctx.closePath();
+        ctx.strokeStyle = 'rgba(78,205,196,0.2)';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Skeleton overlay
+  if (parseInt(document.getElementById('showSkel').value)) {
+    drawJointOverlay(fd.newJoints);
+  } else {
+    // Always draw joint handles (for interaction)
+    drawJointHandles(fd.newJoints);
+  }
+
+  ctx.restore();
+}
+
+function drawTexTriangle(ctx, img, d0, d1, d2, s0, s1, s2) {
+  // Affine texture mapping: d is destination, s is source (image coords)
+  const dx1=d1.x-d0.x, dy1=d1.y-d0.y;
+  const dx2=d2.x-d0.x, dy2=d2.y-d0.y;
+  const sx1=s1.x-s0.x, sy1=s1.y-s0.y;
+  const sx2=s2.x-s0.x, sy2=s2.y-s0.y;
+
+  // Solve: [sx1,sx2;sy1,sy2] -> [dx1,dx2;dy1,dy2]
+  // M = D * S^-1  where S=[sx1,sx2;sy1,sy2], D=[dx1,dx2;dy1,dy2]
+  const det = sx1*sy2 - sx2*sy1;
+  if (Math.abs(det) < 0.01) return;
+
+  const a = (dx1*sy2 - dx2*sy1) / det;
+  const b = (dy1*sy2 - dy2*sy1) / det;
+  const c = (dx2*sx1 - dx1*sx2) / det;
+  const d = (dy2*sx1 - dy1*sx2) / det;
+  const e = d0.x - a*s0.x - c*s0.y;
+  const f = d0.y - b*s0.x - d*s0.y;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(d0.x, d0.y); ctx.lineTo(d1.x, d1.y); ctx.lineTo(d2.x, d2.y);
+  ctx.closePath();
+  ctx.clip();
+  ctx.transform(a, b, c, d, e, f);
+  ctx.drawImage(img, 0, 0);
+  ctx.restore();
+}
+
+function drawJointOverlay(jointPos) {
+  // Draw bones
+  const bonePairs = [[J.NECK,J.HEAD],[J.NECK,J.LS],[J.NECK,J.RS],[J.LS,J.LE],[J.LE,J.LW],[J.RS,J.RE],[J.RE,J.RW],
+    [J.PELVIS,J.NECK],[J.PELVIS,J.LH],[J.PELVIS,J.RH],[J.LH,J.LK],[J.LK,J.LA],[J.RH,J.RK],[J.RK,J.RA]];
+  ctx.lineWidth = 1.5;
+  bonePairs.forEach(([a,b]) => {
+    if (!jointPos[a] || !jointPos[b]) return;
+    ctx.beginPath();
+    ctx.moveTo(jointPos[a].x, jointPos[a].y);
+    ctx.lineTo(jointPos[b].x, jointPos[b].y);
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+    ctx.stroke();
+  });
+  // Draw joints
+  jointPos.forEach((jp, i) => {
+    if (!jp) return;
+    ctx.beginPath();
+    ctx.arc(jp.x, jp.y, 4/viewScale, 0, Math.PI*2);
+    ctx.fillStyle = J_COLORS[i];
+    ctx.fill();
+    if (state.selectedJoint === i) {
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  });
+}
+
+function drawJointHandles(jointPos) {
+  if (state.selectedJoint < 0) return;
+  const jp = jointPos[state.selectedJoint];
+  if (!jp) return;
+  ctx.beginPath();
+  ctx.arc(jp.x, jp.y, 6/viewScale, 0, Math.PI*2);
+  ctx.strokeStyle = J_COLORS[state.selectedJoint];
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
+// ─── Playback ─────────────────────────────────────────────────────────────────
+playBtn.addEventListener('click', () => {
+  if (!state.frames.length) return;
+  state.playing = !state.playing;
+  playBtn.textContent = state.playing ? '⏸' : '▶';
+  if (state.playing) scheduleNext();
+});
+
+function scheduleNext() {
+  if (!state.playing) return;
+  const fps = state.poseData?.fps || 16;
+  setTimeout(() => {
+    if (!state.playing) return;
+    state.currentFrame = (state.currentFrame + 1) % state.frames.length;
+    timeline.value = state.currentFrame;
+    frameLabel.textContent = `${state.currentFrame + 1} / ${state.frames.length}`;
+    drawFrame();
+    scheduleNext();
+  }, 1000 / fps);
+}
+
+timeline.addEventListener('input', () => {
+  state.currentFrame = parseInt(timeline.value);
+  frameLabel.textContent = `${state.currentFrame + 1} / ${(state.poseData?.frameCount || 0)}`;
+  drawFrame();
+});
+
+// ─── Export ───────────────────────────────────────────────────────────────────
+exportBtn.addEventListener('click', async () => {
+  if (!state.frames.length) return;
+  exportBtn.disabled = true;
+  setStatus('exporting...', '');
+
+  const cols = parseInt(document.getElementById('expCols').value);
+  const scale = parseInt(document.getElementById('expScale').value);
+  const n = state.frames.length;
+  const rows = Math.ceil(n / cols);
+  const fw = state.spriteW, fh = state.spriteH;
+  const sheetW = cols * fw * scale, sheetH = rows * fh * scale;
+
+  const oc = document.createElement('canvas');
+  oc.width = sheetW; oc.height = sheetH;
+  const ox = oc.getContext('2d');
+
+  for (let fi = 0; fi < n; fi++) {
+    if (fi % 4 === 0) {
+      exportInfo.textContent = `Rendering frame ${fi+1}/${n}...`;
+      await sleep(0);
+    }
+    const fc = document.createElement('canvas');
+    fc.width = fw; fc.height = fh;
+    const fcx = fc.getContext('2d');
+    renderFrameToCtx(fcx, fi, fw, fh);
+    const col = fi % cols, row = Math.floor(fi / cols);
+    ox.drawImage(fc, col * fw * scale, row * fh * scale, fw * scale, fh * scale);
+  }
+
+  exportInfo.textContent = '';
+  oc.toBlob(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `spritesheet_${n}f_${cols}col.png`;
+    a.click();
+    exportBtn.disabled = false;
+    setStatus('export complete', 'ok');
+  });
+});
+
+function renderFrameToCtx(fctx, fi, W, H) {
+  fctx.clearRect(0, 0, W, H);
+  const fd = state.frames[fi];
+  const {verts, tris, boneAssign} = state.mesh;
+  const transformed = fd.transformed;
+
+  for (const boneId of DRAW_ORDER) {
+    for (const tri of tris) {
+      if (boneAssign[tri[0]] !== boneId && boneAssign[tri[1]] !== boneId && boneAssign[tri[2]] !== boneId) continue;
+      const s0 = verts[tri[0]], s1 = verts[tri[1]], s2 = verts[tri[2]];
+      const d0 = transformed[tri[0]], d1 = transformed[tri[1]], d2 = transformed[tri[2]];
+      drawTexTriangle(fctx, state.spriteImg, d0, d1, d2, s0, s1, s2);
+    }
+  }
+}
+
+// ─── Settings live update ─────────────────────────────────────────────────────
+['showMesh','showSkel'].forEach(id => {
+  document.getElementById(id).addEventListener('input', drawFrame);
+});
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+renderSetup();
+drawFrame();
+</script>
+</body>
+</html>
