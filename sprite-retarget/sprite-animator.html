@@ -70,6 +70,8 @@ body{font-family:'JetBrains Mono',monospace,sans-serif;background:var(--b0);colo
       <div class="inf" id="meshInfo"></div>
     </div>
     <div class="tab-pane" id="tab-settings" style="padding-top:8px">
+      <div class="sr"><label>Ref Frame</label><input type="range" id="refFrame" min="0" max="0" value="0"><span class="v" id="refFrameV">0</span></div>
+      <div class="inf" style="margin-top:0;margin-bottom:6px">Frame from new animation that best matches sprite rest pose.</div>
       <div class="sr"><label>Mesh Density</label><input type="range" id="meshDensity" min="6" max="30" value="12"><span class="v" id="meshDensityV">12px</span></div>
       <div class="sr"><label>Joint Blend</label><input type="range" id="blendRadius" min="0" max="60" value="35"><span class="v" id="blendRadiusV">35px</span></div>
       <div class="sr"><label>Hip Bounce</label><input type="range" id="yScale" min="0" max="200" value="80"><span class="v" id="yScaleV">0.80</span></div>
@@ -211,6 +213,9 @@ function loadJSON(file) {
       drp.querySelector('.lb').textContent = `${file.name} (${data.frameCount}f @ ${data.fps}fps)`;
       timeline.max = data.frameCount - 1; timeline.value = 0;
       frameLabel.textContent = `1 / ${data.frameCount}`;
+      const rf = document.getElementById('refFrame');
+      rf.max = data.frames.length - 1; rf.value = 0;
+      document.getElementById('refFrameV').textContent = '0';
       setStatus(`pose loaded: ${data.frameCount} frames`, 'ok');
       buildMeshBtn.disabled = !state.spriteImg;
     } catch(err) { setStatus('invalid JSON: '+err.message, 'err'); }
@@ -322,6 +327,7 @@ function bindSlider(id, valId, fmt, onChange) {
   vl.textContent = fmt(sl.value);
   sl.addEventListener('input', () => { vl.textContent = fmt(sl.value); if(onChange) onChange(); });
 }
+bindSlider('refFrame','refFrameV', v => v);
 bindSlider('meshDensity','meshDensityV', v => v+'px');
 bindSlider('blendRadius','blendRadiusV', v => v+'px');
 bindSlider('yScale','yScaleV', v => (v/100).toFixed(2));
@@ -463,6 +469,9 @@ function boneAngle(joints, p, e) {
   return Math.atan2(joints[e].y - joints[p].y, joints[e].x - joints[p].x);
 }
 function angleDelta(ref, frame, p, e) {
+  // If either joint is invisible in current or reference frame, apply no rotation
+  if ((frame[p] && frame[p].v === 0) || (frame[e] && frame[e].v === 0)) return 0;
+  if ((ref[p]   && ref[p].v   === 0) || (ref[e]   && ref[e].v   === 0)) return 0;
   let d = boneAngle(frame, p, e) - boneAngle(ref, p, e);
   while (d >  Math.PI) d -= 2*Math.PI;
   while (d < -Math.PI) d += 2*Math.PI;
@@ -470,7 +479,8 @@ function angleDelta(ref, frame, p, e) {
 }
 
 function computeFK(frameMotion, sp) {
-  const ref = state.poseData.mirrored[0];
+  const refIdx = Math.min(parseInt(document.getElementById('refFrame').value) || 0, state.poseData.mirrored.length - 1);
+  const ref = state.poseData.mirrored[refIdx];
   const H = state.spriteH;
   const yScaleFactor = parseFloat(document.getElementById('yScale').value) / 100;
   const yDelta = (frameMotion[J.PELVIS].y - ref[J.PELVIS].y) * H * yScaleFactor;
@@ -740,14 +750,21 @@ exportBtn.addEventListener('click', async () => {
   if (!state.frames.length) return;
   exportBtn.disabled = true;
   setStatus('exporting...', '');
-  const cols = parseInt(document.getElementById('expCols').value);
-  const scale = parseInt(document.getElementById('expScale').value);
+  let cols = parseInt(document.getElementById('expCols').value);
+  let scale = parseInt(document.getElementById('expScale').value);
   const n = state.frames.length;
   const pad = CANVAS_PAD;
   const fw = state.spriteW + 2*pad, fh = state.spriteH + 2*pad;
+  // Guard against canvas size exceeding browser limits (~32767px max dimension)
+  const MAX_DIM = 32767, MAX_PX = 200_000_000;
+  while (scale > 1 && (cols*fw*scale > MAX_DIM || Math.ceil(n/cols)*fh*scale > MAX_DIM ||
+         cols*fw*scale * Math.ceil(n/cols)*fh*scale > MAX_PX)) scale--;
+  while (cols > 1 && (cols*fw*scale > MAX_DIM || Math.ceil(n/cols)*fh*scale > MAX_DIM ||
+         cols*fw*scale * Math.ceil(n/cols)*fh*scale > MAX_PX)) cols--;
   const rows = Math.ceil(n/cols);
   const oc = document.createElement('canvas');
   oc.width = cols*fw*scale; oc.height = rows*fh*scale;
+  if (oc.width < 1 || oc.height < 1) { setStatus('export canvas too large to fit', 'err'); exportBtn.disabled=false; return; }
   const ox = oc.getContext('2d');
   for (let fi = 0; fi < n; fi++) {
     if (fi % 4 === 0) { setStatus(`exporting ${fi+1}/${n}...`); await sleep(0); }
