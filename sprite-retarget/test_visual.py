@@ -59,9 +59,10 @@ def angle_delta(ref, frame, p, e):
     return d
 
 def seg_bone_xy(x, y, sp):
-    """Zone-based bone assignment. sp = list of (px,py) sprite joint positions."""
+    """Zone-based bone assignment. sp = list of (px,py) sprite joint positions.
+    No hard pelvis cutoff — arms extend below pelvis in rest pose and would
+    otherwise be mis-assigned to leg bones, causing elbow separation."""
     neck_y   = sp[J['NECK']][1]
-    pelvis_y = sp[J['PELVIS']][1]
     ls_x, rs_x = sp[J['LS']][0], sp[J['RS']][0]
     lh_x, rh_x = sp[J['LH']][0], sp[J['RH']][0]
 
@@ -75,29 +76,23 @@ def seg_bone_xy(x, y, sp):
     if y <= neck_y:
         return 0  # head
 
-    if y > pelvis_y:
-        dists = [
-            seg_dist(*sp[J['LH']], *sp[J['LK']]),  # thighL
-            seg_dist(*sp[J['LK']], *sp[J['LA']]),  # shinL
-            seg_dist(*sp[J['RH']], *sp[J['RK']]),  # thighR
-            seg_dist(*sp[J['RK']], *sp[J['RA']]),  # shinR
-        ]
-        return [6,7,8,9][dists.index(min(dists))]
-
-    # Middle: nearest bone segment
+    # For ALL pixels below neck, compare distance to every body segment
     torso_left  = min(ls_x, lh_x)
     torso_right = max(rs_x, rh_x)
     in_torso = torso_left <= x <= torso_right
 
     scores = [
-        seg_dist(*sp[J['NECK']],  *sp[J['HEAD']]),   # head (0)
         seg_dist(*sp[J['PELVIS']],*sp[J['NECK']]) * (0.6 if in_torso else 1.0),  # torso (1)
         seg_dist(*sp[J['LS']],    *sp[J['LE']]),     # upperArmL (2)
         seg_dist(*sp[J['LE']],    *sp[J['LW']]),     # forearmL  (3)
         seg_dist(*sp[J['RS']],    *sp[J['RE']]),     # upperArmR (4)
         seg_dist(*sp[J['RE']],    *sp[J['RW']]),     # forearmR  (5)
+        seg_dist(*sp[J['LH']],    *sp[J['LK']]),     # thighL    (6)
+        seg_dist(*sp[J['LK']],    *sp[J['LA']]),     # shinL     (7)
+        seg_dist(*sp[J['RH']],    *sp[J['RK']]),     # thighR    (8)
+        seg_dist(*sp[J['RK']],    *sp[J['RA']]),     # shinR     (9)
     ]
-    return [0,1,2,3,4,5][scores.index(min(scores))]
+    return [1,2,3,4,5,6,7,8,9][scores.index(min(scores))]
 
 def compute_vertex_blends(verts, vert_bone, sp, blend_radius):
     blends = []

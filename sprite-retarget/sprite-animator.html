@@ -330,8 +330,7 @@ bindSlider('expScale','expScaleV', v => v+'×');
 // ─── Segmentation ─────────────────────────────────────────────────────────────
 function segBoneXY(x, y, jp) {
   // jp: joint positions in pixels
-  const neckY   = jp[J.NECK].y;
-  const pelvisY = jp[J.PELVIS].y;
+  const neckY = jp[J.NECK].y;
   const lSX = jp[J.LS].x, rSX = jp[J.RS].x;
   const lHX = jp[J.LH].x, rHX = jp[J.RH].x;
 
@@ -345,37 +344,28 @@ function segBoneXY(x, y, jp) {
   // Head: above neck
   if (y <= neckY) return 0;
 
-  // Legs: below pelvis — use nearest limb segment
-  if (y > pelvisY) {
-    const dTL = segDist(jp[J.LH].x,jp[J.LH].y, jp[J.LK].x,jp[J.LK].y);
-    const dSL = segDist(jp[J.LK].x,jp[J.LK].y, jp[J.LA].x,jp[J.LA].y);
-    const dTR = segDist(jp[J.RH].x,jp[J.RH].y, jp[J.RK].x,jp[J.RK].y);
-    const dSR = segDist(jp[J.RK].x,jp[J.RK].y, jp[J.RA].x,jp[J.RA].y);
-    const minD = Math.min(dTL, dSL, dTR, dSR);
-    if (dTL === minD) return 6;
-    if (dSL === minD) return 7;
-    if (dTR === minD) return 8;
-    return 9;
-  }
-
-  // Torso region: between neck and pelvis
-  // Check all 10 bone segment distances, assign to nearest
-  const dHead  = segDist(jp[J.NECK].x, jp[J.NECK].y, jp[J.HEAD].x, jp[J.HEAD].y);
+  // For ALL pixels below the neck, compare distance to every body segment.
+  // (No hard pelvis cutoff — arms extend below pelvis in rest pose and would
+  //  otherwise be mis-assigned to leg bones, causing elbow separation.)
   const dTorso = segDist(jp[J.PELVIS].x,jp[J.PELVIS].y, jp[J.NECK].x,jp[J.NECK].y);
   const dUAL   = segDist(jp[J.LS].x,jp[J.LS].y, jp[J.LE].x,jp[J.LE].y);
   const dFAL   = segDist(jp[J.LE].x,jp[J.LE].y, jp[J.LW].x,jp[J.LW].y);
   const dUAR   = segDist(jp[J.RS].x,jp[J.RS].y, jp[J.RE].x,jp[J.RE].y);
   const dFAR   = segDist(jp[J.RE].x,jp[J.RE].y, jp[J.RW].x,jp[J.RW].y);
+  const dTL    = segDist(jp[J.LH].x,jp[J.LH].y, jp[J.LK].x,jp[J.LK].y);
+  const dSL    = segDist(jp[J.LK].x,jp[J.LK].y, jp[J.LA].x,jp[J.LA].y);
+  const dTR    = segDist(jp[J.RH].x,jp[J.RH].y, jp[J.RK].x,jp[J.RK].y);
+  const dSR    = segDist(jp[J.RK].x,jp[J.RK].y, jp[J.RA].x,jp[J.RA].y);
 
-  const scores = [dHead, dTorso, dUAL, dFAL, dUAR, dFAR];
-  const minS = Math.min(...scores);
-  // Bias torso slightly so pixels inside the torso trunk stay torso
+  // Bias torso so central trunk pixels stay on the torso bone
   const torsoLeft = Math.min(lSX, lHX), torsoRight = Math.max(rSX, rHX);
   const inTorso = x >= torsoLeft && x <= torsoRight;
   const adjTorso = inTorso ? dTorso * 0.6 : dTorso;
-  const scores2 = [dHead, adjTorso, dUAL, dFAL, dUAR, dFAR];
-  const min2 = Math.min(...scores2);
-  return [0,1,2,3,4,5][scores2.indexOf(min2)];
+
+  const scores  = [adjTorso, dUAL, dFAL, dUAR, dFAR, dTL, dSL, dTR, dSR];
+  const boneIds = [1,        2,    3,    4,    5,    6,   7,   8,   9];
+  const minS = Math.min(...scores);
+  return boneIds[scores.indexOf(minS)];
 }
 
 // ─── Vertex blending ──────────────────────────────────────────────────────────
