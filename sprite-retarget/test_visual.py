@@ -109,13 +109,16 @@ def compute_vertex_blends(verts, vert_bone, sp, blend_radius):
         # (shoulders are branch joints not on the torso bone path, so normal
         #  pivot/end blending doesn't reach them, causing seams when arms move)
         if bone == 1:  # torso
+            # Use a wider blend zone for shoulders so the torso socket smoothly
+            # deforms with the arm, preventing visible gaps or seams.
+            shoulder_r = blend_radius * 2
             d_ls = math.hypot(v[0]-sp[J['LS']][0], v[1]-sp[J['LS']][1])
             d_rs = math.hypot(v[0]-sp[J['RS']][0], v[1]-sp[J['RS']][1])
-            if d_ls < blend_radius and d_ls <= d_rs:
-                w = 0.5 + 0.5 * d_ls / blend_radius
+            if d_ls < shoulder_r and d_ls <= d_rs:
+                w = d_ls / shoulder_r  # 0 at joint (fully arm) → 1 at edge (fully torso)
                 blends.append({'bone': bone, 'blend': 2, 'w': w}); continue  # → upperArmL
-            if d_rs < blend_radius:
-                w = 0.5 + 0.5 * d_rs / blend_radius
+            if d_rs < shoulder_r:
+                w = d_rs / shoulder_r
                 blends.append({'bone': bone, 'blend': 4, 'w': w}); continue  # → upperArmR
 
         d_pivot = math.hypot(v[0]-sp[bd['pivot']][0], v[1]-sp[bd['pivot']][1])
@@ -124,11 +127,11 @@ def compute_vertex_blends(verts, vert_bone, sp, blend_radius):
         if d_end < blend_radius:
             child = next((b['id'] for b in BONE_DEFS if b['pivot']==bd['end'] and b['id']!=bone), -1)
             if child >= 0:
-                w = 0.5 + 0.5 * d_end / blend_radius
+                w = d_end / blend_radius  # 0 at joint (fully child) → 1 at edge (fully self)
                 blends.append({'bone':bone,'blend':child,'w':w}); continue
 
         if d_pivot < blend_radius and BONE_PARENT[bone] >= 0:
-            w = 0.5 + 0.5 * d_pivot / blend_radius
+            w = d_pivot / blend_radius  # 0 at pivot (fully parent) → 1 at edge (fully self)
             blends.append({'bone':bone,'blend':BONE_PARENT[bone],'w':w}); continue
 
         blends.append({'bone':bone,'blend':-1,'w':1.0})
@@ -149,6 +152,10 @@ def compute_fk(frame_motion, ref_motion, sp_px, H):
     fk(J['NECK'],  J['HEAD'], angle_delta(ref_motion,frame_motion,J['NECK'],  J['HEAD']))
     fk(J['NECK'],  J['LS'],   angle_delta(ref_motion,frame_motion,J['NECK'],  J['LS']))
     fk(J['NECK'],  J['RS'],   angle_delta(ref_motion,frame_motion,J['NECK'],  J['RS']))
+    # Clamp shoulders horizontally: prevent them from moving inward past the rest-pose
+    # position, which causes the upper arm to visually penetrate the torso.
+    nj[J['LS']]['x'] = min(nj[J['LS']]['x'], sp_px[J['LS']][0])
+    nj[J['RS']]['x'] = max(nj[J['RS']]['x'], sp_px[J['RS']][0])
     fk(J['LS'],    J['LE'],   angle_delta(ref_motion,frame_motion,J['LS'],    J['LE']))
     fk(J['RS'],    J['RE'],   angle_delta(ref_motion,frame_motion,J['RS'],    J['RE']))
     fk(J['LE'],    J['LW'],   angle_delta(ref_motion,frame_motion,J['LE'],    J['LW']))

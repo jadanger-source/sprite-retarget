@@ -388,14 +388,17 @@ function computeVertexBlends(verts, vertBone, sp, blendRadius) {
     // (shoulders are branch joints not on the torso bone path, so normal
     //  pivot/end blending doesn't reach them, causing seams when arms move)
     if (bone === 1) { // torso
+      // Use a wider blend zone for shoulders so the torso socket smoothly
+      // deforms with the arm, preventing visible gaps or seams.
+      const shoulderR = blendRadius * 2;
       const dLS = Math.hypot(v.x - sp[J.LS].x, v.y - sp[J.LS].y);
       const dRS = Math.hypot(v.x - sp[J.RS].x, v.y - sp[J.RS].y);
-      if (dLS < blendRadius && dLS <= dRS) {
-        const w = 0.5 + 0.5 * dLS / blendRadius;
+      if (dLS < shoulderR && dLS <= dRS) {
+        const w = dLS / shoulderR; // 0 at joint (fully arm) → 1 at edge (fully torso)
         return { bone, blendBone: 2, w }; // → upperArmL
       }
-      if (dRS < blendRadius) {
-        const w = 0.5 + 0.5 * dRS / blendRadius;
+      if (dRS < shoulderR) {
+        const w = dRS / shoulderR;
         return { bone, blendBone: 4, w }; // → upperArmR
       }
     }
@@ -407,14 +410,14 @@ function computeVertexBlends(verts, vertBone, sp, blendRadius) {
     if (dEnd < blendRadius) {
       const childBone = BONE_DEFS.findIndex(b => b.pivot === bd.end && b.id !== bone);
       if (childBone >= 0) {
-        const w = 0.5 + 0.5 * (dEnd / blendRadius); // 0.5 at joint, 1.0 at blendRadius
+        const w = dEnd / blendRadius; // 0 at joint (fully child) → 1 at edge (fully self)
         return { bone, blendBone: childBone, w };
       }
     }
 
     // Near the PIVOT of this bone: blend with parent bone
     if (dPivot < blendRadius && BONE_PARENT[bone] >= 0) {
-      const w = 0.5 + 0.5 * (dPivot / blendRadius);
+      const w = dPivot / blendRadius; // 0 at pivot (fully parent) → 1 at edge (fully self)
       return { bone, blendBone: BONE_PARENT[bone], w };
     }
 
@@ -486,6 +489,10 @@ function computeFK(frameMotion, sp) {
   fk(J.NECK,   J.HEAD,  angleDelta(ref, frameMotion, J.NECK,   J.HEAD));
   fk(J.NECK,   J.LS,    angleDelta(ref, frameMotion, J.NECK,   J.LS));
   fk(J.NECK,   J.RS,    angleDelta(ref, frameMotion, J.NECK,   J.RS));
+  // Clamp shoulders horizontally: prevent them from moving inward past the rest-pose
+  // position, which causes the upper arm to visually penetrate the torso.
+  nj[J.LS].x = Math.min(nj[J.LS].x, sp[J.LS].x);
+  nj[J.RS].x = Math.max(nj[J.RS].x, sp[J.RS].x);
   fk(J.LS,     J.LE,    angleDelta(ref, frameMotion, J.LS,     J.LE));
   fk(J.RS,     J.RE,    angleDelta(ref, frameMotion, J.RS,     J.RE));
   fk(J.LE,     J.LW,    angleDelta(ref, frameMotion, J.LE,     J.LW));
