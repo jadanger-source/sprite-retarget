@@ -476,12 +476,21 @@ function computeFK(frameMotion, sp) {
   fk(J.RS,     J.RE,    angleDelta(ref, frameMotion, J.RS,     J.RE));
   fk(J.LE,     J.LW,    angleDelta(ref, frameMotion, J.LE,     J.LW));
   fk(J.RE,     J.RW,    angleDelta(ref, frameMotion, J.RE,     J.RW));
-  fk(J.LH,     J.LK,    angleDelta(ref, frameMotion, J.LH,     J.LK));
-  fk(J.RH,     J.RK,    angleDelta(ref, frameMotion, J.RH,     J.RK));
-  fk(J.LK,     J.LA,    angleDelta(ref, frameMotion, J.LK,     J.LA));
-  fk(J.RK,     J.RA,    angleDelta(ref, frameMotion, J.RK,     J.RA));
+  // Leg bones: negate the angle delta so sagittal (forward/backward) swing from the
+  // side-view maps to inward convergence on the front-facing sprite (crossing-over gait)
+  // rather than lateral spreading (jumping-jacks). The side-view X-displacement is depth
+  // (Z-axis) when re-projected to front view, which should NOT produce lateral rotation.
+  fk(J.LH,     J.LK,   -angleDelta(ref, frameMotion, J.LH,     J.LK));
+  fk(J.RH,     J.RK,   -angleDelta(ref, frameMotion, J.RH,     J.RK));
+  fk(J.LK,     J.LA,   -angleDelta(ref, frameMotion, J.LK,     J.LA));
+  fk(J.RK,     J.RA,   -angleDelta(ref, frameMotion, J.RK,     J.RA));
 
-  const boneDeltas = BONE_DEFS.map(bd => angleDelta(ref, frameMotion, bd.pivot, bd.end));
+  // Leg bones (indices 6-9: thighL, shinL, thighR, shinR) are negated to produce
+  // correct inward crossing from side-view sagittal data (see leg FK calls above).
+  const boneDeltas = BONE_DEFS.map((bd, i) => {
+    const d = angleDelta(ref, frameMotion, bd.pivot, bd.end);
+    return (i >= 6 && i <= 9) ? -d : d;
+  });
   return {nj, boneDeltas};
 }
 
