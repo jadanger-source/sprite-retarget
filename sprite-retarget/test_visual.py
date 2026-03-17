@@ -37,8 +37,9 @@ DRAW_ORDER  = [6,7,8,9,1,0,4,5,2,3]
 MIRROR_IDX  = [0,2,1,4,3,6,5,8,7,10,9,12,11,13,14]
 
 MESH_SPACING = 18   # px between grid vertices
-BLEND_RADIUS = 25   # px for joint blending
+BLEND_RADIUS = 35   # px for joint blending
 Y_SCALE      = 0.8  # hip bounce scale
+CANVAS_PAD   = 200  # extra pixels around frame so arms don't clip
 
 
 def hex_rgb(h):
@@ -80,9 +81,13 @@ def seg_bone_xy(x, y, sp):
     torso_left  = min(ls_x, lh_x)
     torso_right = max(rs_x, rh_x)
     in_torso = torso_left <= x <= torso_right
+    # Don't bias toward torso near shoulder joints — those pixels belong to arm bones
+    d_to_ls = math.hypot(x - sp[J['LS']][0], y - sp[J['LS']][1])
+    d_to_rs = math.hypot(x - sp[J['RS']][0], y - sp[J['RS']][1])
+    near_shoulder = min(d_to_ls, d_to_rs) < 55
 
     scores = [
-        seg_dist(*sp[J['PELVIS']],*sp[J['NECK']]) * (0.6 if in_torso else 1.0),  # torso (1)
+        seg_dist(*sp[J['PELVIS']],*sp[J['NECK']]) * (0.6 if (in_torso and not near_shoulder) else 1.0),  # torso (1)
         seg_dist(*sp[J['LS']],    *sp[J['LE']]),     # upperArmL (2)
         seg_dist(*sp[J['LE']],    *sp[J['LW']]),     # forearmL  (3)
         seg_dist(*sp[J['RS']],    *sp[J['RE']]),     # upperArmR (4)
@@ -99,6 +104,20 @@ def compute_vertex_blends(verts, vert_bone, sp, blend_radius):
     for i, v in enumerate(verts):
         bone = vert_bone[i]
         bd = BONE_DEFS[bone]
+
+        # Special: torso vertices near shoulder joints blend with the arm bones
+        # (shoulders are branch joints not on the torso bone path, so normal
+        #  pivot/end blending doesn't reach them, causing seams when arms move)
+        if bone == 1:  # torso
+            d_ls = math.hypot(v[0]-sp[J['LS']][0], v[1]-sp[J['LS']][1])
+            d_rs = math.hypot(v[0]-sp[J['RS']][0], v[1]-sp[J['RS']][1])
+            if d_ls < blend_radius and d_ls <= d_rs:
+                w = 0.5 + 0.5 * d_ls / blend_radius
+                blends.append({'bone': bone, 'blend': 2, 'w': w}); continue  # → upperArmL
+            if d_rs < blend_radius:
+                w = 0.5 + 0.5 * d_rs / blend_radius
+                blends.append({'bone': bone, 'blend': 4, 'w': w}); continue  # → upperArmR
+
         d_pivot = math.hypot(v[0]-sp[bd['pivot']][0], v[1]-sp[bd['pivot']][1])
         d_end   = math.hypot(v[0]-sp[bd['end']][0],   v[1]-sp[bd['end']][1])
 
@@ -160,9 +179,9 @@ def draw_tex_triangle(out_img, src_img, d0, d1, d2, s0, s1, s2):
     from PIL import Image as PILImage
 
     min_x = int(max(0, min(d0[0],d1[0],d2[0])))
-    max_x = int(min(src_img.width,  max(d0[0],d1[0],d2[0]))) + 1
+    max_x = int(min(out_img.width,  max(d0[0],d1[0],d2[0]))) + 1
     min_y = int(max(0, min(d0[1],d1[1],d2[1])))
-    max_y = int(min(src_img.height, max(d0[1],d1[1],d2[1]))) + 1
+    max_y = int(min(out_img.height, max(d0[1],d1[1],d2[1]))) + 1
 
     if max_x <= min_x or max_y <= min_y: return
 
@@ -233,30 +252,34 @@ def generate_mesh(W, H, spacing, alpha_fn):
     return verts, tris
 
 def render_frame(sprite_rgba, verts, tris, vert_blends, tri_bone,
-                 nj, bone_deltas, sp_px, W, H):
-    out = Image.new('RGBA', (W, H), (0,0,0,0))
-    transformed = [transform_vertex(v, vert_blends[i], nj, bone_deltas, sp_px)
-                   for i, v in enumerate(verts)]
+                 nj, bone_deltas, sp_px, W, H, pad=CANVAS_PAD):
+    OW, OH = W + 2*pad, H + 2*pad
+    out = Image.new('RGBA', (OW, OH), (0,0,0,0))
+    # Offset transformed positions into the padded canvas so arms don't clip
+    raw = [transform_vertex(v, vert_blends[i], nj, bone_deltas, sp_px)
+           for i, v in enumerate(verts)]
+    transformed = [(tx + pad, ty + pad) for tx, ty in raw]
 
     for bone_id in DRAW_ORDER:
         for t_idx, tri in enumerate(tris):
             if tri_bone[t_idx] != bone_id: continue
-            s = [verts[tri[i]] for i in range(3)]
-            d = [transformed[tri[i]] for i in range(3)]
+            s = [verts[tri[i]] for i in range(3)]        # source: sprite-space
+            d = [transformed[tri[i]] for i in range(3)]  # dest:   padded canvas
             draw_tex_triangle(out, sprite_rgba, d[0],d[1],d[2], s[0],s[1],s[2])
     return out
 
-def draw_skeleton_overlay(img, nj):
+def draw_skeleton_overlay(img, nj, pad=CANVAS_PAD):
     draw = ImageDraw.Draw(img, 'RGBA')
     pairs = [(J['NECK'],J['HEAD']),(J['NECK'],J['LS']),(J['NECK'],J['RS']),
              (J['LS'],J['LE']),(J['LE'],J['LW']),(J['RS'],J['RE']),(J['RE'],J['RW']),
              (J['PELVIS'],J['NECK']),(J['PELVIS'],J['LH']),(J['PELVIS'],J['RH']),
              (J['LH'],J['LK']),(J['LK'],J['LA']),(J['RH'],J['RK']),(J['RK'],J['RA'])]
     for a, b in pairs:
-        draw.line([(int(nj[a]['x']),int(nj[a]['y'])), (int(nj[b]['x']),int(nj[b]['y']))],
+        draw.line([(int(nj[a]['x'])+pad, int(nj[a]['y'])+pad),
+                   (int(nj[b]['x'])+pad, int(nj[b]['y'])+pad)],
                   fill=(255,255,255,180), width=2)
     for i, jp in enumerate(nj):
-        x, y = int(jp['x']), int(jp['y'])
+        x, y = int(jp['x'])+pad, int(jp['y'])+pad
         c = hex_rgb(J_COLORS_HEX[i]) + (220,)
         draw.ellipse([x-4,y-4,x+4,y+4], fill=c)
 
@@ -315,19 +338,21 @@ def main():
         nj, bone_deltas = compute_fk(mirrored[fi], ref, sp_px, H)
         frame_img = render_frame(sprite, verts, tris, vert_blends, tri_bone,
                                  nj, bone_deltas, sp_px, W, H)
-        # Optional: overlay skeleton
+        # Optional: overlay skeleton (pad already applied in draw_skeleton_overlay)
         draw_skeleton_overlay(frame_img, nj)
-        # Add white background for visibility
-        bg = Image.new('RGBA', (W, H), (240, 240, 240, 255))
-        bg.paste(frame_img, (0,0), frame_img)
+        # Add white background for visibility (frame is padded size)
+        FW, FH = W + 2*CANVAS_PAD, H + 2*CANVAS_PAD
+        bg = Image.new('RGBA', (FW, FH), (240, 240, 240, 255))
+        bg.paste(frame_img, (0, 0), frame_img)
         bg.save(os.path.join(out_dir, f'frame_{fi:03d}.png'))
         rendered.append(bg)
         if fi % 5 == 0: print(f'  Frame {fi+1}/{n_frames}')
 
-    # Contact sheet (half-size thumbnails)
-    cols = 8
+    # Contact sheet (thumbnails)
+    cols = 7
     rows = math.ceil(n_frames / cols)
-    tw, th = W//3, H//3
+    FW, FH = W + 2*CANVAS_PAD, H + 2*CANVAS_PAD
+    tw, th = FW//3, FH//3
     sheet = Image.new('RGB', (cols*tw, rows*th), (20,20,30))
     for i, fr in enumerate(rendered):
         thumb = fr.resize((tw, th), Image.LANCZOS)

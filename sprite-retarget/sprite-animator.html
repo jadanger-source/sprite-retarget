@@ -71,7 +71,7 @@ body{font-family:'JetBrains Mono',monospace,sans-serif;background:var(--b0);colo
     </div>
     <div class="tab-pane" id="tab-settings" style="padding-top:8px">
       <div class="sr"><label>Mesh Density</label><input type="range" id="meshDensity" min="6" max="30" value="12"><span class="v" id="meshDensityV">12px</span></div>
-      <div class="sr"><label>Joint Blend</label><input type="range" id="blendRadius" min="0" max="60" value="25"><span class="v" id="blendRadiusV">25px</span></div>
+      <div class="sr"><label>Joint Blend</label><input type="range" id="blendRadius" min="0" max="60" value="35"><span class="v" id="blendRadiusV">35px</span></div>
       <div class="sr"><label>Hip Bounce</label><input type="range" id="yScale" min="0" max="200" value="80"><span class="v" id="yScaleV">0.80</span></div>
       <div class="sr"><label>Show Mesh</label><input type="range" id="showMesh" min="0" max="1" value="0"><span class="v" id="showMeshV">off</span></div>
       <div class="sr"><label>Show Skel</label><input type="range" id="showSkel" min="0" max="1" value="0"><span class="v" id="showSkelV">off</span></div>
@@ -98,6 +98,7 @@ body{font-family:'JetBrains Mono',monospace,sans-serif;background:var(--b0);colo
 </div>
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
+const CANVAS_PAD = 200; // extra pixels around each frame so arms don't clip
 const J = { HEAD:0,LS:1,RS:2,LE:3,RE:4,LW:5,RW:6,LH:7,RH:8,LK:9,RK:10,LA:11,RA:12,NECK:13,PELVIS:14 };
 const J_NAMES = ['Head','L Shoulder','R Shoulder','L Elbow','R Elbow','L Wrist','R Wrist',
                  'L Hip','R Hip','L Knee','R Knee','L Ankle','R Ankle','Neck','Pelvis'];
@@ -243,10 +244,13 @@ function renderSetup() {
   if (!state.spriteImg) return;
   const ww = wrap.clientWidth, wh = wrap.clientHeight;
   canvas.width = ww; canvas.height = wh;
-  const s = Math.min(ww / state.spriteW, wh / state.spriteH) * 0.95;
+  // Scale to fit the padded frame so extended arms are visible
+  const vw = state.spriteW + 2*CANVAS_PAD, vh = state.spriteH + 2*CANVAS_PAD;
+  const s = Math.min(ww / vw, wh / vh) * 0.95;
   viewScale = s;
-  viewOffX = (ww - state.spriteW * s) / 2;
-  viewOffY = (wh - state.spriteH * s) / 2;
+  // Center on the padded virtual frame; sprite origin is at (CANVAS_PAD, CANVAS_PAD)
+  viewOffX = (ww - vw * s) / 2 + CANVAS_PAD * s;
+  viewOffY = (wh - vh * s) / 2 + CANVAS_PAD * s;
 }
 window.addEventListener('resize', () => { renderSetup(); drawFrame(); });
 
@@ -357,10 +361,14 @@ function segBoneXY(x, y, jp) {
   const dTR    = segDist(jp[J.RH].x,jp[J.RH].y, jp[J.RK].x,jp[J.RK].y);
   const dSR    = segDist(jp[J.RK].x,jp[J.RK].y, jp[J.RA].x,jp[J.RA].y);
 
-  // Bias torso so central trunk pixels stay on the torso bone
+  // Bias torso so central trunk pixels stay on the torso bone,
+  // but NOT near shoulder joints — those pixels belong to the arm bones.
   const torsoLeft = Math.min(lSX, lHX), torsoRight = Math.max(rSX, rHX);
   const inTorso = x >= torsoLeft && x <= torsoRight;
-  const adjTorso = inTorso ? dTorso * 0.6 : dTorso;
+  const dToLS = Math.hypot(x - jp[J.LS].x, y - jp[J.LS].y);
+  const dToRS = Math.hypot(x - jp[J.RS].x, y - jp[J.RS].y);
+  const nearShoulder = Math.min(dToLS, dToRS) < 55;
+  const adjTorso = (inTorso && !nearShoulder) ? dTorso * 0.6 : dTorso;
 
   const scores  = [adjTorso, dUAL, dFAL, dUAR, dFAR, dTL, dSL, dTR, dSR];
   const boneIds = [1,        2,    3,    4,    5,    6,   7,   8,   9];
@@ -375,6 +383,22 @@ function computeVertexBlends(verts, vertBone, sp, blendRadius) {
   return verts.map((v, i) => {
     const bone = vertBone[i];
     const bd = BONE_DEFS[bone];
+
+    // Special: torso vertices near shoulder joints blend with the arm bones
+    // (shoulders are branch joints not on the torso bone path, so normal
+    //  pivot/end blending doesn't reach them, causing seams when arms move)
+    if (bone === 1) { // torso
+      const dLS = Math.hypot(v.x - sp[J.LS].x, v.y - sp[J.LS].y);
+      const dRS = Math.hypot(v.x - sp[J.RS].x, v.y - sp[J.RS].y);
+      if (dLS < blendRadius && dLS <= dRS) {
+        const w = 0.5 + 0.5 * dLS / blendRadius;
+        return { bone, blendBone: 2, w }; // → upperArmL
+      }
+      if (dRS < blendRadius) {
+        const w = 0.5 + 0.5 * dRS / blendRadius;
+        return { bone, blendBone: 4, w }; // → upperArmR
+      }
+    }
 
     const dPivot = Math.hypot(v.x - sp[bd.pivot].x, v.y - sp[bd.pivot].y);
     const dEnd   = Math.hypot(v.x - sp[bd.end].x,   v.y - sp[bd.end].y);
@@ -573,7 +597,8 @@ function drawTexTriangle(fctx, img, d0, d1, d2, s0, s1, s2) {
 }
 
 function renderFrameToCtx(fctx, fi, frameW, frameH) {
-  fctx.clearRect(0, 0, frameW, frameH);
+  const pad = CANVAS_PAD;
+  fctx.clearRect(0, 0, frameW + 2*pad, frameH + 2*pad);
   fctx.imageSmoothingEnabled = true;
   fctx.imageSmoothingQuality = 'high';
   const fd = state.frames[fi];
@@ -586,7 +611,10 @@ function renderFrameToCtx(fctx, fi, frameW, frameH) {
       if (triBone[t] !== boneId) continue; // each tri drawn exactly ONCE
       const tri = tris[t];
       const s0=verts[tri[0]], s1=verts[tri[1]], s2=verts[tri[2]];
-      const d0=transformed[tri[0]], d1=transformed[tri[1]], d2=transformed[tri[2]];
+      // Offset destination coords into padded canvas space
+      const d0={x:transformed[tri[0]].x+pad, y:transformed[tri[0]].y+pad};
+      const d1={x:transformed[tri[1]].x+pad, y:transformed[tri[1]].y+pad};
+      const d2={x:transformed[tri[2]].x+pad, y:transformed[tri[2]].y+pad};
       if (showBones) {
         // Debug: draw solid colored triangles by bone
         fctx.beginPath();
@@ -622,11 +650,12 @@ function drawFrame() {
     ctx.restore(); return;
   }
 
-  // Render the deformed mesh frame
+  // Render the deformed mesh frame (padded canvas so arms don't clip)
+  const pad = CANVAS_PAD;
   const fc = document.createElement('canvas');
-  fc.width = state.spriteW; fc.height = state.spriteH;
+  fc.width = state.spriteW + 2*pad; fc.height = state.spriteH + 2*pad;
   renderFrameToCtx(fc.getContext('2d'), state.currentFrame, state.spriteW, state.spriteH);
-  ctx.drawImage(fc, 0, 0);
+  ctx.drawImage(fc, -pad, -pad); // draw at -pad offset so sprite stays at origin
 
   const fd = state.frames[state.currentFrame];
   const showMesh = +document.getElementById('showMesh').value;
@@ -707,7 +736,8 @@ exportBtn.addEventListener('click', async () => {
   const cols = parseInt(document.getElementById('expCols').value);
   const scale = parseInt(document.getElementById('expScale').value);
   const n = state.frames.length;
-  const fw = state.spriteW, fh = state.spriteH;
+  const pad = CANVAS_PAD;
+  const fw = state.spriteW + 2*pad, fh = state.spriteH + 2*pad;
   const rows = Math.ceil(n/cols);
   const oc = document.createElement('canvas');
   oc.width = cols*fw*scale; oc.height = rows*fh*scale;
@@ -715,7 +745,7 @@ exportBtn.addEventListener('click', async () => {
   for (let fi = 0; fi < n; fi++) {
     if (fi % 4 === 0) { setStatus(`exporting ${fi+1}/${n}...`); await sleep(0); }
     const fc = document.createElement('canvas'); fc.width=fw; fc.height=fh;
-    renderFrameToCtx(fc.getContext('2d'), fi, fw, fh);
+    renderFrameToCtx(fc.getContext('2d'), fi, state.spriteW, state.spriteH);
     ox.drawImage(fc, (fi%cols)*fw*scale, Math.floor(fi/cols)*fh*scale, fw*scale, fh*scale);
   }
   oc.toBlob(blob => {
