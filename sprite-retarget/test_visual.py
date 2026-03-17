@@ -1,9 +1,10 @@
 """
-Visual test: renders actual mesh-deformed sprite frames using FK + triangle texture mapping.
+Visual test: renders sprite frames using rigid bone cutout rotation.
+Each bone segment rotates as a solid piece with small overlap (dilation) at joints.
 Saves test_frames/ PNGs and test_contact_sheet.png.
 """
 import json, math, os
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter, ImageChops
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 J = dict(HEAD=0,LS=1,RS=2,LE=3,RE=4,LW=5,RW=6,LH=7,RH=8,LK=9,RK=10,LA=11,RA=12,NECK=13,PELVIS=14)
@@ -33,13 +34,15 @@ BONE_DEFS = [
     dict(id=9,name='shinR',    pivot=J['RK'],    end=J['RA']),
 ]
 BONE_PARENT = [-1,-1,1,2,1,4,1,6,1,8]
+# Draw order: legs (back) → torso → head → right arm (back) → left arm (front)
 DRAW_ORDER  = [6,7,8,9,1,0,4,5,2,3]
 MIRROR_IDX  = [0,2,1,4,3,6,5,8,7,10,9,12,11,13,14]
 
-MESH_SPACING = 18   # px between grid vertices
-BLEND_RADIUS = 35   # px for joint blending
-Y_SCALE      = 0.8  # hip bounce scale
-CANVAS_PAD   = 200  # extra pixels around frame so arms don't clip
+Y_SCALE      = 0.4   # hip bounce scale (dampened for 2D)
+CANVAS_PAD   = 200   # extra pixels around frame so arms don't clip
+ANGLE_DAMP   = 0.55  # scale all angle deltas (3D motion too extreme for 2D)
+MAX_ANGLE    = 0.85   # max radians (~49°) per bone rotation
+JOINT_DILATION = 6    # pixels of overlap at bone boundaries
 
 
 def hex_rgb(h):
@@ -57,13 +60,13 @@ def angle_delta(ref, frame, p, e):
     d = bone_angle(frame, p, e) - bone_angle(ref, p, e)
     while d >  math.pi: d -= 2*math.pi
     while d < -math.pi: d += 2*math.pi
+    d *= ANGLE_DAMP
+    d = max(-MAX_ANGLE, min(MAX_ANGLE, d))
     return d
 
 def seg_bone_xy(x, y, sp):
-    """Zone-based bone assignment. sp = list of (px,py) sprite joint positions.
-    No hard pelvis cutoff — arms extend below pelvis in rest pose and would
-    otherwise be mis-assigned to leg bones, causing elbow separation."""
-    neck_y   = sp[J['NECK']][1]
+    """Zone-based bone assignment."""
+    neck_y = sp[J['NECK']][1]
     ls_x, rs_x = sp[J['LS']][0], sp[J['RS']][0]
     lh_x, rh_x = sp[J['LH']][0], sp[J['RH']][0]
 
@@ -77,67 +80,72 @@ def seg_bone_xy(x, y, sp):
     if y <= neck_y:
         return 0  # head
 
-    # For ALL pixels below neck, compare distance to every body segment
     torso_left  = min(ls_x, lh_x)
     torso_right = max(rs_x, rh_x)
     in_torso = torso_left <= x <= torso_right
-    # Don't bias toward torso near shoulder joints — those pixels belong to arm bones
     d_to_ls = math.hypot(x - sp[J['LS']][0], y - sp[J['LS']][1])
     d_to_rs = math.hypot(x - sp[J['RS']][0], y - sp[J['RS']][1])
     near_shoulder = min(d_to_ls, d_to_rs) < 55
 
     scores = [
-        seg_dist(*sp[J['PELVIS']],*sp[J['NECK']]) * (0.6 if (in_torso and not near_shoulder) else 1.0),  # torso (1)
-        seg_dist(*sp[J['LS']],    *sp[J['LE']]),     # upperArmL (2)
-        seg_dist(*sp[J['LE']],    *sp[J['LW']]),     # forearmL  (3)
-        seg_dist(*sp[J['RS']],    *sp[J['RE']]),     # upperArmR (4)
-        seg_dist(*sp[J['RE']],    *sp[J['RW']]),     # forearmR  (5)
-        seg_dist(*sp[J['LH']],    *sp[J['LK']]),     # thighL    (6)
-        seg_dist(*sp[J['LK']],    *sp[J['LA']]),     # shinL     (7)
-        seg_dist(*sp[J['RH']],    *sp[J['RK']]),     # thighR    (8)
-        seg_dist(*sp[J['RK']],    *sp[J['RA']]),     # shinR     (9)
+        seg_dist(*sp[J['PELVIS']],*sp[J['NECK']]) * (0.6 if (in_torso and not near_shoulder) else 1.0),
+        seg_dist(*sp[J['LS']],    *sp[J['LE']]),
+        seg_dist(*sp[J['LE']],    *sp[J['LW']]),
+        seg_dist(*sp[J['RS']],    *sp[J['RE']]),
+        seg_dist(*sp[J['RE']],    *sp[J['RW']]),
+        seg_dist(*sp[J['LH']],    *sp[J['LK']]),
+        seg_dist(*sp[J['LK']],    *sp[J['LA']]),
+        seg_dist(*sp[J['RH']],    *sp[J['RK']]),
+        seg_dist(*sp[J['RK']],    *sp[J['RA']]),
     ]
     return [1,2,3,4,5,6,7,8,9][scores.index(min(scores))]
 
-def compute_vertex_blends(verts, vert_bone, sp, blend_radius):
-    blends = []
-    for i, v in enumerate(verts):
-        bone = vert_bone[i]
-        bd = BONE_DEFS[bone]
+# ── Rigid bone cutout approach ─────────────────────────────────────────────────
 
-        # Special: torso vertices near shoulder joints blend with the arm bones
-        # (shoulders are branch joints not on the torso bone path, so normal
-        #  pivot/end blending doesn't reach them, causing seams when arms move)
-        if bone == 1:  # torso
-            # Use a wider blend zone for shoulders so the torso socket smoothly
-            # deforms with the arm, preventing visible gaps or seams.
-            shoulder_r = blend_radius * 2
-            d_ls = math.hypot(v[0]-sp[J['LS']][0], v[1]-sp[J['LS']][1])
-            d_rs = math.hypot(v[0]-sp[J['RS']][0], v[1]-sp[J['RS']][1])
-            if d_ls < shoulder_r and d_ls <= d_rs:
-                w = d_ls / shoulder_r  # 0 at joint (fully arm) → 1 at edge (fully torso)
-                blends.append({'bone': bone, 'blend': 2, 'w': w}); continue  # → upperArmL
-            if d_rs < shoulder_r:
-                w = d_rs / shoulder_r
-                blends.append({'bone': bone, 'blend': 4, 'w': w}); continue  # → upperArmR
+def build_bone_images(sprite, sp_px, dilation=JOINT_DILATION):
+    """Pre-cut sprite into per-bone RGBA images with dilated masks for joint overlap."""
+    W, H = sprite.size
+    alpha = sprite.split()[3]
+    alpha_data = list(alpha.getdata())
 
-        d_pivot = math.hypot(v[0]-sp[bd['pivot']][0], v[1]-sp[bd['pivot']][1])
-        d_end   = math.hypot(v[0]-sp[bd['end']][0],   v[1]-sp[bd['end']][1])
+    # Assign every opaque pixel to a bone
+    print('  Segmenting pixels into bones...')
+    bone_assign = bytearray(W * H)  # bone id per pixel (0-9), 255 = no bone
+    for y in range(H):
+        for x in range(W):
+            if alpha_data[y*W+x] > 10:
+                bone_assign[y*W+x] = seg_bone_xy(x, y, sp_px)
+            else:
+                bone_assign[y*W+x] = 255
 
-        if d_end < blend_radius:
-            child = next((b['id'] for b in BONE_DEFS if b['pivot']==bd['end'] and b['id']!=bone), -1)
-            if child >= 0:
-                w = d_end / blend_radius  # 0 at joint (fully child) → 1 at edge (fully self)
-                blends.append({'bone':bone,'blend':child,'w':w}); continue
+    bone_images = {}
+    for bone_id in range(10):
+        # Create binary mask for this bone
+        mask_data = bytearray(W * H)
+        for i in range(W * H):
+            if bone_assign[i] == bone_id:
+                mask_data[i] = 255
+        mask = Image.new('L', (W, H))
+        mask.putdata(list(mask_data))
 
-        if d_pivot < blend_radius and BONE_PARENT[bone] >= 0:
-            w = d_pivot / blend_radius  # 0 at pivot (fully parent) → 1 at edge (fully self)
-            blends.append({'bone':bone,'blend':BONE_PARENT[bone],'w':w}); continue
+        # Dilate to create overlap at joints
+        dilated = mask
+        for _ in range(dilation):
+            dilated = dilated.filter(ImageFilter.MaxFilter(3))
 
-        blends.append({'bone':bone,'blend':-1,'w':1.0})
-    return blends
+        # Only keep dilated pixels that are within the sprite's opaque area
+        final_mask = ImageChops.darker(dilated, alpha)
+
+        # Extract sprite pixels with this mask
+        bone_img = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+        bone_img.paste(sprite, mask=final_mask)
+        bone_images[bone_id] = bone_img
+
+    return bone_images
+
 
 def compute_fk(frame_motion, ref_motion, sp_px, H):
+    """Forward kinematics: compute new joint positions and per-bone angle deltas."""
     yD = (frame_motion[J['PELVIS']]['y'] - ref_motion[J['PELVIS']]['y']) * H * Y_SCALE
     nj = [{'x':p[0],'y':p[1]+yD} for p in sp_px]
 
@@ -152,8 +160,6 @@ def compute_fk(frame_motion, ref_motion, sp_px, H):
     fk(J['NECK'],  J['HEAD'], angle_delta(ref_motion,frame_motion,J['NECK'],  J['HEAD']))
     fk(J['NECK'],  J['LS'],   angle_delta(ref_motion,frame_motion,J['NECK'],  J['LS']))
     fk(J['NECK'],  J['RS'],   angle_delta(ref_motion,frame_motion,J['NECK'],  J['RS']))
-    # Clamp shoulders horizontally: prevent them from moving inward past the rest-pose
-    # position, which causes the upper arm to visually penetrate the torso.
     nj[J['LS']]['x'] = min(nj[J['LS']]['x'], sp_px[J['LS']][0])
     nj[J['RS']]['x'] = max(nj[J['RS']]['x'], sp_px[J['RS']][0])
     fk(J['LS'],    J['LE'],   angle_delta(ref_motion,frame_motion,J['LS'],    J['LE']))
@@ -168,112 +174,39 @@ def compute_fk(frame_motion, ref_motion, sp_px, H):
     bone_deltas = [angle_delta(ref_motion, frame_motion, b['pivot'], b['end']) for b in BONE_DEFS]
     return nj, bone_deltas
 
-def rotate_around_bone(v, bone_id, nj, bone_deltas, sp_px):
-    bd = BONE_DEFS[bone_id]
-    ox = v[0] - sp_px[bd['pivot']][0]; oy = v[1] - sp_px[bd['pivot']][1]
-    c, s = math.cos(bone_deltas[bone_id]), math.sin(bone_deltas[bone_id])
-    return (nj[bd['pivot']]['x']+ox*c-oy*s, nj[bd['pivot']]['y']+ox*s+oy*c)
 
-def transform_vertex(v, blend, nj, bone_deltas, sp_px):
-    px = rotate_around_bone(v, blend['bone'], nj, bone_deltas, sp_px)
-    if blend['blend'] < 0: return px
-    sx = rotate_around_bone(v, blend['blend'], nj, bone_deltas, sp_px)
-    w = blend['w']
-    return (px[0]*w + sx[0]*(1-w), px[1]*w + sx[1]*(1-w))
-
-def draw_tex_triangle(out_img, src_img, d0, d1, d2, s0, s1, s2):
-    """Affine triangle texture mapping using PIL."""
-    from PIL import Image as PILImage
-
-    min_x = int(max(0, min(d0[0],d1[0],d2[0])))
-    max_x = int(min(out_img.width,  max(d0[0],d1[0],d2[0]))) + 1
-    min_y = int(max(0, min(d0[1],d1[1],d2[1])))
-    max_y = int(min(out_img.height, max(d0[1],d1[1],d2[1]))) + 1
-
-    if max_x <= min_x or max_y <= min_y: return
-
-    # Affine: source from dest. Solve: M*dest = source
-    dx1, dy1 = d1[0]-d0[0], d1[1]-d0[1]
-    dx2, dy2 = d2[0]-d0[0], d2[1]-d0[1]
-    sx1, sy1 = s1[0]-s0[0], s1[1]-s0[1]
-    sx2, sy2 = s2[0]-s0[0], s2[1]-s0[1]
-    det = dx1*dy2 - dx2*dy1
-    if abs(det) < 0.01: return
-
-    # M maps dest → source
-    a = (sx1*dy2 - sx2*dy1) / det
-    b = (sx2*dx1 - sx1*dx2) / det
-    c = s0[0] - a*d0[0] - b*d0[1]
-    dd = (sy1*dy2 - sy2*dy1) / det
-    e = (sy2*dx1 - sy1*dx2) / det
-    f = s0[1] - dd*d0[0] - e*d0[1]
-
-    bw, bh = max_x - min_x, max_y - min_y
-    # Adjust for bbox offset
-    c2 = c + a*min_x + b*min_y
-    f2 = f + dd*min_x + e*min_y
-
-    try:
-        region = src_img.transform((bw, bh), PILImage.AFFINE, (a, b, c2, dd, e, f2),
-                                   resample=PILImage.BILINEAR)
-    except Exception:
-        return
-
-    # Triangle mask within bbox
-    mask = PILImage.new('L', (bw, bh), 0)
-    md = ImageDraw.Draw(mask)
-    md.polygon([(d0[0]-min_x, d0[1]-min_y),
-                (d1[0]-min_x, d1[1]-min_y),
-                (d2[0]-min_x, d2[1]-min_y)], fill=255)
-
-    out_img.paste(region, (min_x, min_y), mask)
-
-def generate_mesh(W, H, spacing, alpha_fn):
-    cols = W // spacing + 2
-    rows = H // spacing + 2
-    vert_grid = {}
-    verts = []
-
-    for r in range(rows):
-        for c in range(cols):
-            x = min(c * spacing, W)
-            y = min(r * spacing, H)
-            has_alpha = any(alpha_fn(x+dx, y+dy) > 10
-                           for dy in range(-spacing, spacing+1, spacing)
-                           for dx in range(-spacing, spacing+1, spacing))
-            if has_alpha:
-                vert_grid[(r,c)] = len(verts)
-                verts.append((float(x), float(y)))
-
-    tris = []
-    for r in range(rows-1):
-        for c in range(cols-1):
-            i00 = vert_grid.get((r,  c))
-            i10 = vert_grid.get((r+1,c))
-            i01 = vert_grid.get((r,  c+1))
-            i11 = vert_grid.get((r+1,c+1))
-            if i00 is not None and i10 is not None and i01 is not None:
-                tris.append((i00,i10,i01))
-            if i10 is not None and i11 is not None and i01 is not None:
-                tris.append((i10,i11,i01))
-    return verts, tris
-
-def render_frame(sprite_rgba, verts, tris, vert_blends, tri_bone,
-                 nj, bone_deltas, sp_px, W, H, pad=CANVAS_PAD):
+def render_frame_rigid(bone_images, nj, bone_deltas, sp_px, W, H, pad=CANVAS_PAD):
+    """Render one frame by rigidly rotating each bone cutout."""
     OW, OH = W + 2*pad, H + 2*pad
-    out = Image.new('RGBA', (OW, OH), (0,0,0,0))
-    # Offset transformed positions into the padded canvas so arms don't clip
-    raw = [transform_vertex(v, vert_blends[i], nj, bone_deltas, sp_px)
-           for i, v in enumerate(verts)]
-    transformed = [(tx + pad, ty + pad) for tx, ty in raw]
+    out = Image.new('RGBA', (OW, OH), (0, 0, 0, 0))
 
     for bone_id in DRAW_ORDER:
-        for t_idx, tri in enumerate(tris):
-            if tri_bone[t_idx] != bone_id: continue
-            s = [verts[tri[i]] for i in range(3)]        # source: sprite-space
-            d = [transformed[tri[i]] for i in range(3)]  # dest:   padded canvas
-            draw_tex_triangle(out, sprite_rgba, d[0],d[1],d[2], s[0],s[1],s[2])
+        bd = BONE_DEFS[bone_id]
+        angle = bone_deltas[bone_id]
+        px, py = sp_px[bd['pivot']]
+        npx, npy = nj[bd['pivot']]['x'], nj[bd['pivot']]['y']
+
+        # PIL AFFINE coefficients: maps output (padded canvas) coords → input (sprite) coords
+        # Forward: out = R(angle) * (in - orig_pivot) + new_pivot + pad
+        # Inverse: in = R(-angle) * (out - new_pivot - pad) + orig_pivot
+        ca, sa = math.cos(angle), math.sin(angle)
+        # Coefficients for inverse mapping (output → input)
+        a_coef = ca
+        b_coef = sa
+        c_coef = px - ca * (npx + pad) - sa * (npy + pad)
+        d_coef = -sa
+        e_coef = ca
+        f_coef = py + sa * (npx + pad) - ca * (npy + pad)
+
+        rotated = bone_images[bone_id].transform(
+            (OW, OH), Image.AFFINE,
+            (a_coef, b_coef, c_coef, d_coef, e_coef, f_coef),
+            resample=Image.BICUBIC)
+
+        out = Image.alpha_composite(out, rotated)
+
     return out
+
 
 def draw_skeleton_overlay(img, nj, pad=CANVAS_PAD):
     draw = ImageDraw.Draw(img, 'RGBA')
@@ -290,6 +223,7 @@ def draw_skeleton_overlay(img, nj, pad=CANVAS_PAD):
         c = hex_rgb(J_COLORS_HEX[i]) + (220,)
         draw.ellipse([x-4,y-4,x+4,y+4], fill=c)
 
+
 def main():
     base = '/home/user/sprite-retarget/sprite-retarget'
     sprite_path = os.path.join(base, 'bodywhole1.png')
@@ -304,13 +238,6 @@ def main():
     W, H = sprite.size
     print(f'Sprite: {W}×{H}')
 
-    # Build alpha lookup
-    alpha_data = list(sprite.getdata(3))
-    def get_alpha(x, y):
-        ix = max(0, min(W-1, int(round(x))))
-        iy = max(0, min(H-1, int(round(y))))
-        return alpha_data[iy*W+ix]
-
     with open(json_path) as f:
         data = json.load(f)
 
@@ -323,44 +250,55 @@ def main():
     # Sprite joint positions in pixels
     sp_px = [(jx*W, jy*H) for jx, jy in DEFAULT_JOINTS]
 
-    # Build mesh
-    print('Building mesh...')
-    verts, tris = generate_mesh(W, H, MESH_SPACING, get_alpha)
-    print(f'  {len(verts)} verts, {len(tris)} tris')
+    # Build rigid bone cutouts
+    print('Building bone cutouts...')
+    bone_images = build_bone_images(sprite, sp_px)
+    print(f'  Built {len(bone_images)} bone images (dilation={JOINT_DILATION}px)')
 
-    # Assign bones
-    vert_bone = [seg_bone_xy(v[0], v[1], sp_px) for v in verts]
-    vert_blends = compute_vertex_blends(verts, vert_bone, sp_px, BLEND_RADIUS)
-
-    # Assign triangles by centroid
-    tri_bone = []
-    for tri in tris:
-        cx = (verts[tri[0]][0]+verts[tri[1]][0]+verts[tri[2]][0]) / 3
-        cy = (verts[tri[0]][1]+verts[tri[1]][1]+verts[tri[2]][1]) / 3
-        tri_bone.append(seg_bone_xy(cx, cy, sp_px))
-
+    # Render all frames
     print('Rendering frames...')
-    rendered = []
+    FW, FH = W + 2*CANVAS_PAD, H + 2*CANVAS_PAD
+    global_bbox = [FW, FH, 0, 0]
+    raw_frames = []
+
     for fi in range(n_frames):
         nj, bone_deltas = compute_fk(mirrored[fi], ref, sp_px, H)
-        frame_img = render_frame(sprite, verts, tris, vert_blends, tri_bone,
-                                 nj, bone_deltas, sp_px, W, H)
-        # Optional: overlay skeleton (pad already applied in draw_skeleton_overlay)
-        draw_skeleton_overlay(frame_img, nj)
-        # Add white background for visibility (frame is padded size)
-        FW, FH = W + 2*CANVAS_PAD, H + 2*CANVAS_PAD
-        bg = Image.new('RGBA', (FW, FH), (240, 240, 240, 255))
-        bg.paste(frame_img, (0, 0), frame_img)
-        bg.save(os.path.join(out_dir, f'frame_{fi:03d}.png'))
-        rendered.append(bg)
+        frame_img = render_frame_rigid(bone_images, nj, bone_deltas, sp_px, W, H)
+
+        bbox = frame_img.getbbox()
+        if bbox:
+            global_bbox[0] = min(global_bbox[0], bbox[0])
+            global_bbox[1] = min(global_bbox[1], bbox[1])
+            global_bbox[2] = max(global_bbox[2], bbox[2])
+            global_bbox[3] = max(global_bbox[3], bbox[3])
+
+        raw_frames.append((frame_img, nj))
         if fi % 5 == 0: print(f'  Frame {fi+1}/{n_frames}')
 
-    # Contact sheet (thumbnails)
+    # Crop to global content bounding box
+    margin = 10
+    crop_x0 = max(0, global_bbox[0] - margin)
+    crop_y0 = max(0, global_bbox[1] - margin)
+    crop_x1 = min(FW, global_bbox[2] + margin)
+    crop_y1 = min(FH, global_bbox[3] + margin)
+    cw, ch = crop_x1 - crop_x0, crop_y1 - crop_y0
+    print(f'  Global bbox: {cw}×{ch} (cropped from {FW}×{FH})')
+
+    # Save cropped frames
+    rendered = []
+    for fi, (frame_img, nj) in enumerate(raw_frames):
+        draw_skeleton_overlay(frame_img, nj)
+        bg = Image.new('RGBA', (FW, FH), (240, 240, 240, 255))
+        bg.paste(frame_img, (0, 0), frame_img)
+        cropped = bg.crop((crop_x0, crop_y0, crop_x1, crop_y1))
+        cropped.save(os.path.join(out_dir, f'frame_{fi:03d}.png'))
+        rendered.append(cropped)
+
+    # Contact sheet
     cols = 7
     rows = math.ceil(n_frames / cols)
-    FW, FH = W + 2*CANVAS_PAD, H + 2*CANVAS_PAD
-    tw, th = FW//3, FH//3
-    sheet = Image.new('RGB', (cols*tw, rows*th), (20,20,30))
+    tw, th = cw // 3, ch // 3
+    sheet = Image.new('RGB', (cols*tw, rows*th), (20, 20, 30))
     for i, fr in enumerate(rendered):
         thumb = fr.resize((tw, th), Image.LANCZOS)
         sheet.paste(thumb, ((i%cols)*tw, (i//cols)*th))
@@ -368,6 +306,7 @@ def main():
     sheet.save(sheet_path)
     print(f'\nSaved {n_frames} frames → {out_dir}/')
     print(f'Contact sheet → {sheet_path}')
+
 
 if __name__ == '__main__':
     main()
