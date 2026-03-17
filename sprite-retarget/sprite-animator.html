@@ -72,7 +72,7 @@ body{font-family:'JetBrains Mono',monospace,sans-serif;background:var(--b0);colo
     <div class="tab-pane" id="tab-settings" style="padding-top:8px">
       <div class="sr"><label>Ref Frame</label><input type="range" id="refFrame" min="0" max="0" value="0"><span class="v" id="refFrameV">0</span></div>
       <div class="inf" style="margin-top:0;margin-bottom:6px">Frame from new animation that best matches sprite rest pose.</div>
-      <div class="sr"><label>Dilation</label><input type="range" id="dilation" min="0" max="16" value="6"><span class="v" id="dilationV">6px</span></div>
+      <div class="sr"><label>Dilation</label><input type="range" id="dilation" min="0" max="16" value="8"><span class="v" id="dilationV">8px</span></div>
       <div class="sr"><label>Hip Bounce</label><input type="range" id="yScale" min="0" max="200" value="40"><span class="v" id="yScaleV">0.40</span></div>
       <div class="sr"><label>Show Skel</label><input type="range" id="showSkel" min="0" max="1" value="0"><span class="v" id="showSkelV">off</span></div>
       <div class="sr"><label>Bone Colors</label><input type="range" id="showBones" min="0" max="1" value="0"><span class="v" id="showBonesV">off</span></div>
@@ -99,8 +99,8 @@ body{font-family:'JetBrains Mono',monospace,sans-serif;background:var(--b0);colo
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const CANVAS_PAD = 200;
-const ANGLE_DAMP = 0.55;
-const MAX_ANGLE = 0.85;
+const ANGLE_DAMP = 0.65;
+const MAX_ANGLE = 1.2;
 const J = { HEAD:0,LS:1,RS:2,LE:3,RE:4,LW:5,RW:6,LH:7,RH:8,LK:9,RK:10,LA:11,RA:12,NECK:13,PELVIS:14 };
 const J_NAMES = ['Head','L Shoulder','R Shoulder','L Elbow','R Elbow','L Wrist','R Wrist',
                  'L Hip','R Hip','L Knee','R Knee','L Ankle','R Ankle','Neck','Pelvis'];
@@ -468,10 +468,10 @@ function computeFK(frameMotion, sp) {
   fk(J.PELVIS, J.LH,    angleDelta(ref, frameMotion, J.PELVIS, J.LH));
   fk(J.PELVIS, J.RH,    angleDelta(ref, frameMotion, J.PELVIS, J.RH));
   fk(J.NECK,   J.HEAD,  angleDelta(ref, frameMotion, J.NECK,   J.HEAD));
-  fk(J.NECK,   J.LS,    angleDelta(ref, frameMotion, J.NECK,   J.LS));
-  fk(J.NECK,   J.RS,    angleDelta(ref, frameMotion, J.NECK,   J.RS));
-  nj[J.LS].x = Math.min(nj[J.LS].x, sp[J.LS].x);
-  nj[J.RS].x = Math.max(nj[J.RS].x, sp[J.RS].x);
+  // Shoulders: fixed at rest-pose offset from NECK (NECK→LS/RS angle is unstable
+  // in 2D projection — both shoulders can appear near the neck causing false large swings)
+  nj[J.LS] = { x: nj[J.NECK].x + (sp[J.LS].x - sp[J.NECK].x), y: nj[J.NECK].y + (sp[J.LS].y - sp[J.NECK].y) };
+  nj[J.RS] = { x: nj[J.NECK].x + (sp[J.RS].x - sp[J.NECK].x), y: nj[J.NECK].y + (sp[J.RS].y - sp[J.NECK].y) };
   fk(J.LS,     J.LE,    angleDelta(ref, frameMotion, J.LS,     J.LE));
   fk(J.RS,     J.RE,    angleDelta(ref, frameMotion, J.RS,     J.RE));
   fk(J.LE,     J.LW,    angleDelta(ref, frameMotion, J.LE,     J.LW));
@@ -695,11 +695,13 @@ exportBtn.addEventListener('click', async () => {
 
   let cols = parseInt(document.getElementById('expCols').value);
   let scale = parseInt(document.getElementById('expScale').value);
-  const MAX_DIM = 32767, MAX_PX = 200_000_000;
-  while (scale > 1 && (cols*cropW*scale > MAX_DIM || Math.ceil(n/cols)*cropH*scale > MAX_DIM ||
-         cols*cropW*scale * Math.ceil(n/cols)*cropH*scale > MAX_PX)) scale--;
-  while (cols > 1 && (cols*cropW*scale > MAX_DIM || Math.ceil(n/cols)*cropH*scale > MAX_DIM ||
-         cols*cropW*scale * Math.ceil(n/cols)*cropH*scale > MAX_PX)) cols--;
+  const MAX_DIM = 32767, MAX_PX = 500_000_000;
+  // If height exceeds limit, INCREASE cols (more columns = fewer rows = shorter height)
+  while (Math.ceil(n/cols)*cropH*scale > MAX_DIM) cols++;
+  // If width exceeds limit, reduce scale
+  while (scale > 1 && cols*cropW*scale > MAX_DIM) scale--;
+  // Total pixel safety limit — reduce scale
+  while (scale > 1 && cols*cropW*scale * Math.ceil(n/cols)*cropH*scale > MAX_PX) scale--;
   const rows = Math.ceil(n/cols);
   const sheetW = cols*cropW*scale, sheetH = rows*cropH*scale;
   setStatus(`export: ${sheetW}×${sheetH} (${cols}col × ${rows}row)`, '');

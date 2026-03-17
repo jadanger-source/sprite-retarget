@@ -40,9 +40,9 @@ MIRROR_IDX  = [0,2,1,4,3,6,5,8,7,10,9,12,11,13,14]
 
 Y_SCALE      = 0.4   # hip bounce scale (dampened for 2D)
 CANVAS_PAD   = 200   # extra pixels around frame so arms don't clip
-ANGLE_DAMP   = 0.55  # scale all angle deltas (3D motion too extreme for 2D)
-MAX_ANGLE    = 0.85   # max radians (~49°) per bone rotation
-JOINT_DILATION = 6    # pixels of overlap at bone boundaries
+ANGLE_DAMP   = 0.65  # scale all angle deltas (3D motion too extreme for 2D)
+MAX_ANGLE    = 1.2    # max radians (~69°) per bone rotation
+JOINT_DILATION = 8    # pixels of overlap at bone boundaries
 
 
 def hex_rgb(h):
@@ -158,10 +158,12 @@ def compute_fk(frame_motion, ref_motion, sp_px, H):
     fk(J['PELVIS'],J['LH'],   angle_delta(ref_motion,frame_motion,J['PELVIS'],J['LH']))
     fk(J['PELVIS'],J['RH'],   angle_delta(ref_motion,frame_motion,J['PELVIS'],J['RH']))
     fk(J['NECK'],  J['HEAD'], angle_delta(ref_motion,frame_motion,J['NECK'],  J['HEAD']))
-    fk(J['NECK'],  J['LS'],   angle_delta(ref_motion,frame_motion,J['NECK'],  J['LS']))
-    fk(J['NECK'],  J['RS'],   angle_delta(ref_motion,frame_motion,J['NECK'],  J['RS']))
-    nj[J['LS']]['x'] = min(nj[J['LS']]['x'], sp_px[J['LS']][0])
-    nj[J['RS']]['x'] = max(nj[J['RS']]['x'], sp_px[J['RS']][0])
+    # Shoulders: fixed at rest-pose offset from NECK (NECK→LS/RS angle is unstable
+    # in 2D projection — both shoulders can appear near the neck causing false +60° swings)
+    nj[J['LS']] = {'x': nj[J['NECK']]['x'] + (sp_px[J['LS']][0]-sp_px[J['NECK']][0]),
+                   'y': nj[J['NECK']]['y'] + (sp_px[J['LS']][1]-sp_px[J['NECK']][1])}
+    nj[J['RS']] = {'x': nj[J['NECK']]['x'] + (sp_px[J['RS']][0]-sp_px[J['NECK']][0]),
+                   'y': nj[J['NECK']]['y'] + (sp_px[J['RS']][1]-sp_px[J['NECK']][1])}
     fk(J['LS'],    J['LE'],   angle_delta(ref_motion,frame_motion,J['LS'],    J['LE']))
     fk(J['RS'],    J['RE'],   angle_delta(ref_motion,frame_motion,J['RS'],    J['RE']))
     fk(J['LE'],    J['LW'],   angle_delta(ref_motion,frame_motion,J['LE'],    J['LW']))
