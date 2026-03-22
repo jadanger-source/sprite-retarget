@@ -816,10 +816,6 @@ class AnimatorApp(tk.Tk):
             f'JSON loaded: {os.path.basename(path)}  {n} frames @ {self.fps} fps')
         self._on_json_loaded()
 
-    # Hooks called after loading (subclasses / later steps override)
-    def _on_sprite_loaded(self): pass
-    def _on_json_loaded(self):   pass
-
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 if __name__ == '__main__':
