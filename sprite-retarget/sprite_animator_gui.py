@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.12
 """
 sprite_animator_gui.py  –  Interactive sprite animator editor.
 Built incrementally; run at any step to verify progress.
