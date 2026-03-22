@@ -4,6 +4,8 @@ sprite_animator_gui.py  –  Interactive sprite animator editor.
 Built incrementally; run at any step to verify progress.
 """
 
+from __future__ import annotations
+
 import json
 import math
 import os
