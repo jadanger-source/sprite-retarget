@@ -5,749 +5,743 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sprite Animator</title>
 <style>
-:root{--b0:#0a0a0f;--b1:#12121a;--b3:#1e1e2e;--bd:#2a2a3e;--t:#e8e8f0;--t2:#8888a8;--t3:#5a5a78;--ac:#4ecdc4;--ac2:#4ecdc422;--gn:#3ddc84;--rd:#ff6b6b}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'JetBrains Mono',monospace,sans-serif;background:var(--b0);color:var(--t);height:100vh;overflow:hidden;user-select:none}
-.hdr{height:44px;background:var(--b1);border-bottom:1px solid var(--bd);display:flex;align-items:center;padding:0 16px;gap:12px}
-.hdr h1{font-size:12px;font-weight:600;color:var(--ac)}.hdr .st{font-size:11px;color:var(--t2);margin-left:auto}
-.hdr .st.ok{color:var(--gn)}.hdr .st.err{color:var(--rd)}
-.main{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 44px)}
-.pnl{background:var(--b1);border-right:1px solid var(--bd);overflow-y:auto;display:flex;flex-direction:column}
-.sec{padding:12px 14px;border-bottom:1px solid var(--bd)}.sec h3{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--t3);margin-bottom:8px}
-.drp{border:2px dashed var(--bd);border-radius:6px;padding:16px 12px;text-align:center;cursor:pointer;transition:all .15s}
-.drp:hover,.drp.over{border-color:var(--ac);background:var(--ac2)}.drp input{display:none}
-.drp .lb{font-size:11px;color:var(--t2)}.drp .sb{font-size:9px;color:var(--t3);margin-top:2px}
-.drp.ok{border-color:var(--gn);border-style:solid}.drp.ok .lb{color:var(--gn)}
-.btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:7px 12px;border:1px solid var(--bd);border-radius:5px;background:var(--b3);color:var(--t);font-family:inherit;font-size:11px;cursor:pointer;width:100%;margin-top:6px;transition:all .15s}
-.btn:hover{border-color:var(--ac)}.btn.p{background:var(--ac);border-color:var(--ac);color:#000;font-weight:600}
-.btn.p:hover{opacity:.9}.btn:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
-.sr{display:flex;align-items:center;gap:6px;margin-bottom:6px}.sr label{font-size:10px;color:var(--t2);min-width:80px}
-.sr input[type=range]{-webkit-appearance:none;flex:1;height:3px;background:var(--bd);border-radius:2px;outline:none}
-.sr input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:var(--ac);cursor:pointer}
-.sr .v{font-size:10px;color:var(--t3);min-width:28px;text-align:right}
-.prg{width:100%;height:3px;background:var(--bd);border-radius:2px;overflow:hidden;margin-top:8px}
-.prg .f{height:100%;background:var(--ac);transition:width .05s;width:0}
-.inf{font-size:10px;color:var(--t3);margin-top:6px}
-.right{display:flex;flex-direction:column;overflow:hidden;background:var(--b0)}
-.cvs-wrap{flex:1;position:relative;overflow:hidden;background:#111}
-#mainCanvas{display:block;cursor:crosshair}
-.pb{height:50px;background:var(--b1);border-top:1px solid var(--bd);display:flex;align-items:center;padding:0 12px;gap:8px;flex-shrink:0}
-.ply{width:28px;height:28px;border-radius:50%;background:var(--ac);border:none;cursor:pointer;color:#000;font-size:12px;flex-shrink:0;font-family:inherit}
-.ply:hover{opacity:.9}
-#timeline{-webkit-appearance:none;flex:1;height:3px;background:var(--bd);border-radius:2px;outline:none}
-#timeline::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--ac);cursor:pointer}
-.fl{font-size:10px;color:var(--t2);min-width:55px;text-align:right}
-.tabs{display:flex;border-bottom:1px solid var(--bd)}
-.tab{flex:1;padding:8px;font-size:10px;color:var(--t3);cursor:pointer;text-align:center;border-bottom:2px solid transparent;transition:all .1s}
-.tab.active{color:var(--ac);border-bottom-color:var(--ac)}
-.tab-pane{display:none}.tab-pane.active{display:block}
-.joint-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border-radius:4px;font-size:9px;cursor:pointer;border:1px solid var(--bd);background:var(--b3);color:var(--t2);margin:2px}
-.joint-chip.sel{border-color:var(--ac);color:var(--ac);background:var(--ac2)}
-.exp-bar{background:var(--b3);border-top:1px solid var(--bd);padding:8px 14px;display:flex;gap:6px;align-items:center;flex-shrink:0}
-.exp-bar .btn{margin:0;flex:1}
+/* ── Design tokens ──────────────────────────────────────────────────────── */
+:root {
+  --bg:   #1a1a2e;
+  --bg2:  #0d0d1a;
+  --bg3:  #2a2a4e;
+  --bd:   #3a3a5e;
+  --fg:   #c0c0e0;
+  --fg2:  #8080a0;
+  --fg3:  #5a5a78;
+  --ac:   #4ecdc4;
+  --gn:   #3ddc84;
+  --rd:   #ff6b6b;
+}
+
+/* ── Reset ──────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 12px;
+  background: var(--bg);
+  color: var(--fg);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+}
+
+/* ── Scrollbars ─────────────────────────────────────────────────────────── */
+::-webkit-scrollbar              { width: 7px; height: 7px; }
+::-webkit-scrollbar-track        { background: var(--bg2); }
+::-webkit-scrollbar-thumb        { background: var(--bd);  border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover  { background: var(--fg3); }
+
+/* ── Menu bar ───────────────────────────────────────────────────────────── */
+#menubar {
+  height: 30px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--bd);
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  flex-shrink: 0;
+  z-index: 200;
+}
+.menu-item {
+  position: relative;
+  padding: 4px 10px;
+  cursor: pointer;
+  border-radius: 3px;
+  color: var(--fg);
+  font-size: 12px;
+}
+.menu-item:hover { background: var(--bg3); }
+.menu-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: var(--bg2);
+  border: 1px solid var(--bd);
+  min-width: 200px;
+  z-index: 999;
+  box-shadow: 4px 4px 12px rgba(0,0,0,.7);
+  border-radius: 0 4px 4px 4px;
+}
+.menu-item:hover .menu-dropdown { display: block; }
+.menu-entry {
+  padding: 7px 14px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  color: var(--fg);
+  white-space: nowrap;
+}
+.menu-entry:hover { background: var(--bg3); }
+.menu-entry .accel { color: var(--fg3); font-size: 10px; }
+.menu-sep { border-top: 1px solid var(--bd); margin: 3px 0; }
+
+/* ── Main split layout ──────────────────────────────────────────────────── */
+#main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#left-pane {
+  width: 430px;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+#sash {
+  width: 4px;
+  background: var(--bd);
+  cursor: col-resize;
+  flex-shrink: 0;
+}
+#sash:hover { background: var(--ac); }
+
+#right-pane {
+  flex: 1;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Panel chrome ───────────────────────────────────────────────────────── */
+.panel {
+  border: 1px solid var(--bd);
+  border-radius: 4px;
+  margin: 4px 6px;
+  flex-shrink: 0;
+}
+.panel-header {
+  background: var(--bg3);
+  padding: 3px 8px;
+  font-size: 10px;
+  color: var(--fg2);
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  border-bottom: 1px solid var(--bd);
+  border-radius: 3px 3px 0 0;
+}
+.panel-body { padding: 7px 8px; }
+
+/* ── File drop zones ────────────────────────────────────────────────────── */
+.drop-zone {
+  border: 2px dashed var(--bd);
+  border-radius: 5px;
+  padding: 8px 6px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+  color: var(--fg2);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.drop-zone:hover, .drop-zone.drag-over { border-color: var(--ac); color: var(--ac); }
+.drop-zone.loaded { border-style: solid; border-color: var(--gn); color: var(--gn); }
+.drop-zone input[type=file] { display: none; }
+
+/* ── Bone selector grid ─────────────────────────────────────────────────── */
+#bone-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  margin-bottom: 6px;
+}
+.bone-btn {
+  padding: 5px 4px;
+  border: 2px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+  outline: none;
+  transition: border-color .1s;
+}
+.bone-btn.active { border-color: #fff !important; }
+
+/* ── Generic control rows ───────────────────────────────────────────────── */
+.ctrl-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+.ctrl-row label {
+  min-width: 64px;
+  color: var(--fg2);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.ctrl-row .val {
+  min-width: 28px;
+  text-align: right;
+  color: var(--fg);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.ctrl-row input[type=range] {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 3px;
+  background: var(--bd);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.ctrl-row input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: var(--ac);
+  cursor: pointer;
+}
+.ctrl-row-inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--fg2);
+}
+.ctrl-row-inline label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+.ctrl-btn {
+  background: var(--bg3);
+  color: var(--fg);
+  border: 1px solid var(--bd);
+  padding: 3px 10px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+  border-radius: 3px;
+  margin-left: auto;
+}
+.ctrl-btn:hover { border-color: var(--ac); color: var(--ac); }
+
+/* ── Editor canvas area ─────────────────────────────────────────────────── */
+#editor-wrap {
+  flex: 1;
+  overflow: auto;
+  background: var(--bg2);
+  cursor: crosshair;
+  min-height: 0;
+  position: relative;
+}
+#editor-canvas { display: block; }
+#editor-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg3);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+/* ── Parameters panel ───────────────────────────────────────────────────── */
+.param-row {
+  display: grid;
+  grid-template-columns: 88px 1fr 36px;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 4px;
+}
+.param-row label { color: var(--fg2); font-size: 11px; }
+.param-row .val   { text-align: right; color: var(--fg); font-size: 11px; }
+.param-row input[type=range] {
+  -webkit-appearance: none;
+  height: 3px;
+  background: var(--bd);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  width: 100%;
+}
+.param-row input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: var(--ac);
+  cursor: pointer;
+}
+.param-extras {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--fg2);
+}
+.param-extras label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+.fps-wrap { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+input.num-input {
+  width: 46px;
+  background: var(--bg3);
+  color: var(--fg);
+  border: 1px solid var(--bd);
+  padding: 2px 4px;
+  font-family: inherit;
+  font-size: 11px;
+  border-radius: 3px;
+  text-align: right;
+}
+input.num-input:focus { outline: 1px solid var(--ac); }
+
+/* ── Preview section ────────────────────────────────────────────────────── */
+#preview-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin: 4px 6px;
+  border: 1px solid var(--bd);
+  border-radius: 4px;
+  overflow: hidden;
+}
+#preview-header {
+  background: var(--bg3);
+  padding: 3px 8px;
+  font-size: 10px;
+  color: var(--fg2);
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  border-bottom: 1px solid var(--bd);
+  flex-shrink: 0;
+}
+#preview-canvas {
+  flex: 1;
+  display: block;
+  background: var(--bg2);
+  width: 100%;
+  min-height: 0;
+}
+
+/* ── Transport bar ──────────────────────────────────────────────────────── */
+#transport {
+  flex-shrink: 0;
+  background: var(--bg2);
+  border-top: 1px solid var(--bd);
+  padding: 5px 7px;
+}
+#scrubber-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 5px;
+}
+#scrubber {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 3px;
+  background: var(--bd);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+#scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: var(--ac);
+  cursor: pointer;
+}
+#frame-lbl { min-width: 60px; text-align: right; color: var(--fg2); font-size: 10px; }
+#btn-row { display: flex; gap: 4px; }
+.tb {
+  background: var(--bg3);
+  color: var(--fg);
+  border: 1px solid var(--bd);
+  padding: 4px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  border-radius: 3px;
+  min-width: 30px;
+  text-align: center;
+}
+.tb:hover { border-color: var(--ac); }
+#play-btn { min-width: 72px; }
+.tb.active { background: var(--ac); border-color: var(--ac); color: #000; font-weight: 600; }
+
+/* ── Status bar ─────────────────────────────────────────────────────────── */
+#statusbar {
+  flex-shrink: 0;
+  height: 20px;
+  background: var(--bg2);
+  border-top: 1px solid var(--bd);
+  padding: 2px 8px;
+  font-size: 10px;
+  color: var(--fg2);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 </style>
 </head>
 <body>
-<div class="hdr"><h1>SPRITE ANIMATOR</h1><span class="st" id="status">load sprite + pose JSON</span></div>
-<div class="main">
-<div class="pnl">
-  <div class="sec"><h3>Files</h3>
-    <div class="drp" id="spriteDrp"><div style="font-size:18px;margin-bottom:4px">🧍</div><div class="lb">Drop Sprite PNG</div><div class="sb">785×1302 recommended</div><input type="file" id="spriteIn" accept="image/png,image/gif"></div>
-    <div class="drp" style="margin-top:8px" id="jsonDrp"><div style="font-size:18px;margin-bottom:4px">📊</div><div class="lb">Drop Pose JSON</div><div class="sb">motion_data.json</div><input type="file" id="jsonIn" accept=".json"></div>
-  </div>
-  <div class="sec" style="flex:1">
-    <div class="tabs">
-      <div class="tab active" data-tab="joints">Joints</div>
-      <div class="tab" data-tab="settings">Settings</div>
-      <div class="tab" data-tab="export">Export</div>
+
+<!-- ── Menu bar ──────────────────────────────────────────────────────────── -->
+<div id="menubar">
+  <div class="menu-item">File
+    <div class="menu-dropdown">
+      <div class="menu-entry" id="m-open-sprite">Load Sprite…   <span class="accel">Ctrl+O</span></div>
+      <div class="menu-entry" id="m-open-json">Load JSON…     <span class="accel">Ctrl+J</span></div>
+      <div class="menu-sep"></div>
+      <div class="menu-entry" id="m-export-gif">Export GIF…    <span class="accel">Ctrl+G</span></div>
+      <div class="menu-entry" id="m-export-frames">Export Frames… <span class="accel">Ctrl+E</span></div>
+      <div class="menu-sep"></div>
+      <div class="menu-entry" id="m-quit">Quit            <span class="accel">Ctrl+Q</span></div>
     </div>
-    <div class="tab-pane active" id="tab-joints" style="padding-top:8px">
-      <div class="inf" style="margin-top:0">Click joints to select, drag on canvas to reposition.</div>
-      <div id="jointChips" style="margin-top:8px"></div>
-      <button class="btn" id="resetJoints" style="margin-top:8px">Reset to Defaults</button>
-      <button class="btn p" id="buildMeshBtn" disabled style="margin-top:6px">Build Bones &amp; Animate</button>
-      <div class="prg" id="buildPrg"><div class="f" id="buildPrgF"></div></div>
-      <div class="inf" id="meshInfo"></div>
-    </div>
-    <div class="tab-pane" id="tab-settings" style="padding-top:8px">
-      <div class="sr"><label>Ref Frame</label><input type="range" id="refFrame" min="0" max="0" value="0"><span class="v" id="refFrameV">0</span></div>
-      <div class="inf" style="margin-top:0;margin-bottom:6px">Frame from new animation that best matches sprite rest pose.</div>
-      <div class="sr"><label>Dilation</label><input type="range" id="dilation" min="0" max="16" value="8"><span class="v" id="dilationV">8px</span></div>
-      <div class="sr"><label>Hip Bounce</label><input type="range" id="yScale" min="0" max="200" value="40"><span class="v" id="yScaleV">0.40</span></div>
-      <div class="sr"><label>Show Skel</label><input type="range" id="showSkel" min="0" max="1" value="0"><span class="v" id="showSkelV">off</span></div>
-      <div class="sr"><label>Bone Colors</label><input type="range" id="showBones" min="0" max="1" value="0"><span class="v" id="showBonesV">off</span></div>
-    </div>
-    <div class="tab-pane" id="tab-export" style="padding-top:8px">
-      <div class="sr"><label>Columns</label><input type="range" id="expCols" min="1" max="16" value="8"><span class="v" id="expColsV">8</span></div>
-      <div class="sr"><label>Scale</label><input type="range" id="expScale" min="1" max="4" value="1"><span class="v" id="expScaleV">1×</span></div>
-      <div class="inf">Exports all frames as a single PNG sprite sheet (auto-cropped).</div>
-    </div>
-  </div>
-  <div class="exp-bar">
-    <button class="btn p" id="exportBtn" disabled>⬇ Export Sprite Sheet</button>
   </div>
 </div>
-<div class="right">
-  <div class="cvs-wrap" id="canvasWrap"><canvas id="mainCanvas"></canvas></div>
-  <div class="pb">
-    <button class="ply" id="playBtn">▶</button>
-    <input type="range" id="timeline" min="0" max="0" value="0">
-    <span class="fl" id="frameLabel">0 / 0</span>
-  </div>
-</div>
-</div>
+
+<!-- ── Main area ─────────────────────────────────────────────────────────── -->
+<div id="main">
+
+  <!-- Left pane ──────────────────────────────────────────────────────────── -->
+  <div id="left-pane">
+
+    <!-- File loading -->
+    <div class="panel">
+      <div class="panel-header">Files</div>
+      <div class="panel-body" style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <div class="drop-zone" id="sprite-drop">
+          🧍 Sprite PNG
+          <div id="sprite-drop-name" style="font-size:9px;margin-top:2px;opacity:.7">drop or click</div>
+          <input type="file" id="sprite-file-in" accept="image/png,image/gif,image/jpeg,image/webp">
+        </div>
+        <div class="drop-zone" id="json-drop">
+          📊 Pose JSON
+          <div id="json-drop-name" style="font-size:9px;margin-top:2px;opacity:.7">drop or click</div>
+          <input type="file" id="json-file-in" accept=".json">
+        </div>
+      </div>
+    </div>
+
+    <!-- Bone Painter -->
+    <div class="panel">
+      <div class="panel-header">Bone Painter</div>
+      <div class="panel-body">
+        <div id="bone-grid"><!-- populated by JS --></div>
+        <div class="ctrl-row">
+          <label>Brush px:</label>
+          <input type="range" id="brush-sl" min="2" max="80" value="15">
+          <span class="val" id="brush-val">15</span>
+        </div>
+        <div class="ctrl-row-inline">
+          <label><input type="checkbox" id="overlay-chk" checked> Show overlay</label>
+          <button class="ctrl-btn" id="auto-assign-btn">Auto-assign</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Editor canvas (bone painter canvas) -->
+    <div id="editor-wrap">
+      <canvas id="editor-canvas"></canvas>
+      <div id="editor-placeholder">Load a sprite to begin</div>
+    </div>
+
+  </div><!-- /left-pane -->
+
+  <div id="sash"></div>
+
+  <!-- Right pane ─────────────────────────────────────────────────────────── -->
+  <div id="right-pane">
+
+    <!-- Parameters -->
+    <div class="panel">
+      <div class="panel-header">Parameters</div>
+      <div class="panel-body">
+        <div class="param-row">
+          <label>Dampening</label>
+          <input type="range" id="damp-sl" min="0" max="1.5" step="0.01" value="0.65">
+          <span class="val" id="damp-val">0.65</span>
+        </div>
+        <div class="param-row">
+          <label>Max Angle</label>
+          <input type="range" id="maxang-sl" min="0.3" max="3.0" step="0.01" value="1.20">
+          <span class="val" id="maxang-val">1.20</span>
+        </div>
+        <div class="param-row">
+          <label>Y-Scale</label>
+          <input type="range" id="yscale-sl" min="0" max="1.0" step="0.01" value="0.40">
+          <span class="val" id="yscale-val">0.40</span>
+        </div>
+        <div class="param-row">
+          <label>Dil Radius</label>
+          <input type="range" id="dil-sl" min="0" max="20" step="1" value="8">
+          <span class="val" id="dil-val">8</span>
+        </div>
+        <div class="param-extras">
+          <label><input type="checkbox" id="mirror-chk"> Mirror L/R</label>
+          <div class="fps-wrap">
+            <span>FPS:</span>
+            <input type="number" class="num-input" id="fps-in" min="1" max="60" value="12">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview -->
+    <div id="preview-section">
+      <div id="preview-header">Preview</div>
+      <canvas id="preview-canvas"></canvas>
+      <div id="transport">
+        <div id="scrubber-row">
+          <input type="range" id="scrubber" min="0" max="0" value="0" step="1">
+          <span id="frame-lbl">0 / 0</span>
+        </div>
+        <div id="btn-row">
+          <button class="tb" id="btn-first" title="First frame (Home)">|◀</button>
+          <button class="tb" id="btn-back"  title="Previous frame (←)">◀</button>
+          <button class="tb" id="play-btn"  title="Play / Pause (Space)">▶ Play</button>
+          <button class="tb" id="btn-fwd"   title="Next frame (→)">▶</button>
+          <button class="tb" id="btn-last"  title="Last frame (End)">▶|</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /right-pane -->
+
+</div><!-- /main -->
+
+<!-- ── Status bar ────────────────────────────────────────────────────────── -->
+<div id="statusbar">No data loaded</div>
+
+<!-- ── Hidden file inputs for menu ──────────────────────────────────────── -->
+<input type="file" id="menu-sprite-in" accept="image/png,image/gif,image/jpeg,image/webp" style="display:none">
+<input type="file" id="menu-json-in"   accept=".json" style="display:none">
+
 <script>
-// ─── Constants ───────────────────────────────────────────────────────────────
-const CANVAS_PAD = 200;
-const ANGLE_DAMP = 0.65;
-const MAX_ANGLE = 1.2;
-const J = { HEAD:0,LS:1,RS:2,LE:3,RE:4,LW:5,RW:6,LH:7,RH:8,LK:9,RK:10,LA:11,RA:12,NECK:13,PELVIS:14 };
-const J_NAMES = ['Head','L Shoulder','R Shoulder','L Elbow','R Elbow','L Wrist','R Wrist',
-                 'L Hip','R Hip','L Knee','R Knee','L Ankle','R Ankle','Neck','Pelvis'];
-const J_COLORS = ['#ff9f43','#48dbfb','#ff6b9d','#48dbfb','#ff6b9d','#48dbfb','#ff6b9d',
-                  '#54a0ff','#ee5a24','#54a0ff','#ee5a24','#54a0ff','#ee5a24','#ffd32a','#c8d6e5'];
-
+'use strict';
+// ── Skeleton constants (mirrors sprite_animator_gui.py) ───────────────────
+const J = {
+  HEAD:0, LS:1, RS:2, LE:3, RE:4, LW:5, RW:6,
+  LH:7,  RH:8, LK:9, RK:10, LA:11, RA:12, NECK:13, PELVIS:14
+};
 const DEFAULT_JOINTS = [
-  {x:0.50,y:0.08},{x:0.22,y:0.33},{x:0.77,y:0.33},
-  {x:0.15,y:0.49},{x:0.84,y:0.49},{x:0.11,y:0.63},
-  {x:0.87,y:0.63},{x:0.36,y:0.49},{x:0.60,y:0.49},
-  {x:0.33,y:0.78},{x:0.64,y:0.78},{x:0.31,y:0.92},
-  {x:0.67,y:0.94},{x:0.50,y:0.28},{x:0.50,y:0.49}
+  [0.50,0.08],[0.22,0.33],[0.77,0.33],
+  [0.15,0.49],[0.84,0.49],[0.11,0.63],
+  [0.87,0.63],[0.36,0.49],[0.60,0.49],
+  [0.33,0.78],[0.64,0.78],[0.31,0.92],
+  [0.67,0.94],[0.50,0.28],[0.50,0.49],
 ];
-
 const BONE_DEFS = [
-  {id:0,name:'head',     pivot:J.NECK,  end:J.HEAD},
-  {id:1,name:'torso',    pivot:J.PELVIS,end:J.NECK},
-  {id:2,name:'upperArmL',pivot:J.LS,   end:J.LE},
-  {id:3,name:'forearmL', pivot:J.LE,   end:J.LW},
-  {id:4,name:'upperArmR',pivot:J.RS,   end:J.RE},
-  {id:5,name:'forearmR', pivot:J.RE,   end:J.RW},
-  {id:6,name:'thighL',   pivot:J.LH,   end:J.LK},
-  {id:7,name:'shinL',    pivot:J.LK,   end:J.LA},
-  {id:8,name:'thighR',   pivot:J.RH,   end:J.RK},
-  {id:9,name:'shinR',    pivot:J.RK,   end:J.RA},
+  {id:0, name:'head',      pivot:13, end:0 },
+  {id:1, name:'torso',     pivot:14, end:13},
+  {id:2, name:'upperArmL', pivot:1,  end:3 },
+  {id:3, name:'forearmL',  pivot:3,  end:5 },
+  {id:4, name:'upperArmR', pivot:2,  end:4 },
+  {id:5, name:'forearmR',  pivot:4,  end:6 },
+  {id:6, name:'thighL',    pivot:7,  end:9 },
+  {id:7, name:'shinL',     pivot:9,  end:11},
+  {id:8, name:'thighR',    pivot:8,  end:10},
+  {id:9, name:'shinR',     pivot:10, end:12},
 ];
-const BONE_DBG_COLORS = [
-  '#ffd32a','#c8d6e5','#48dbfb','#00d2d3','#ff6b9d','#ff9ff3',
-  '#54a0ff','#48dbfb','#ee5a24','#ff9f43'
+const DRAW_ORDER  = [6,7,8,9,1,0,4,5,2,3];
+const MIRROR_IDX  = [0,2,1,4,3,6,5,8,7,10,9,12,11,13,14];
+const CANVAS_PAD  = 200;
+const BONE_COLORS = [
+  [255,200, 50],  // 0  head       gold
+  [100,200,255],  // 1  torso      sky-blue
+  [ 50,210,110],  // 2  upperArmL  green
+  [ 30,150, 60],  // 3  forearmL   dark-green
+  [255,130, 50],  // 4  upperArmR  orange
+  [200, 80, 20],  // 5  forearmR   burnt-orange
+  [160,110,255],  // 6  thighL     purple
+  [100, 60,200],  // 7  shinL      dark-purple
+  [255, 80,140],  // 8  thighR     pink
+  [190, 30, 80],  // 9  shinR      crimson
 ];
-const DRAW_ORDER = [6,7,8,9,1,0,4,5,2,3];
-const MIRROR_IDX = [0,2,1,4,3,6,5,8,7,10,9,12,11,13,14];
+const BONE_NAMES = ['head','torso','uArmL','fArmL','uArmR','fArmR','thighL','shinL','thighR','shinR'];
+const OVERLAY_ALPHA = 160;
 
-// ─── State ────────────────────────────────────────────────────────────────────
-let state = {
-  spriteImg:null, spriteW:0, spriteH:0,
-  poseData:null,
-  joints:DEFAULT_JOINTS.map(j=>({...j})),
-  selectedJoint:-1,
-  boneCanvases:null, // Map: boneId → offscreen canvas with dilated bone pixels
-  frames:[],         // [{nj, boneDeltas}]
-  currentFrame:0,
-  playing:false,
-  alphaMap:null,
+// ── Application state ─────────────────────────────────────────────────────
+const S = {
+  // loaded data
+  spriteImg:    null,   // HTMLImageElement
+  spriteW:      0,
+  spriteH:      0,
+  spritePixels: null,   // Uint8ClampedArray RGBA flat (H*W*4)
+
+  frames:  null,        // [{x,y,v}×15] per frame
+  fpsSrc:  12,          // fps from JSON
+
+  // joint positions matched to sprite
+  joints: DEFAULT_JOINTS.map(j => [...j]),  // [[xNorm,yNorm]×15]
+  spPx:   null,         // [[px,py]×15] in sprite pixels
+
+  // bone data
+  alpha:        null,   // Uint8Array H×W
+  boneAssign:   null,   // Uint8Array H×W  (0-9 = bone, 255 = unassigned)
+  boneCanvases: {},     // {0..9 → HTMLCanvasElement}
+
+  // ui
+  activeBone:  1,
+  brushRadius: 15,
+  showOverlay: true,
+  editorScale: 1.0,
+  painting:    false,
+
+  // playback
+  currentFrame: 0,
+  playing:      false,
+  playTimer:    null,
+
+  // render cache
+  renderCache: new Map(),
+
+  // live parameters
+  dampening: 0.65,
+  maxAngle:  1.20,
+  yScale:    0.40,
+  dilRadius: 8,
+  mirror:    false,
+  animFps:   12,
 };
 
-// ─── DOM ───────────────────────────────────────────────────────────────────────
-const canvas = document.getElementById('mainCanvas');
-const ctx = canvas.getContext('2d');
-const wrap = document.getElementById('canvasWrap');
-const statusEl = document.getElementById('status');
-const playBtn = document.getElementById('playBtn');
-const timeline = document.getElementById('timeline');
-const frameLabel = document.getElementById('frameLabel');
-const buildMeshBtn = document.getElementById('buildMeshBtn');
-const buildPrgF = document.getElementById('buildPrgF');
-const meshInfo = document.getElementById('meshInfo');
-const exportBtn = document.getElementById('exportBtn');
+// ── Utilities ─────────────────────────────────────────────────────────────
+const $  = id => document.getElementById(id);
+const setStatus = msg => { $('statusbar').textContent = msg; };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const toHex = (r,g,b) => '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
 
-function setStatus(msg, type='') {
-  statusEl.textContent = msg;
-  statusEl.className = 'st' + (type ? ' '+type : '');
-}
-
-// ─── File drops ───────────────────────────────────────────────────────────────
-function setupDrop(zone, inp, onFile) {
-  zone.addEventListener('click', e => { if(e.target!==inp){e.preventDefault(); inp.value=''; inp.click();} });
-  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('over'); });
-  zone.addEventListener('dragleave', () => zone.classList.remove('over'));
-  zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('over'); if(e.dataTransfer.files[0]) onFile(e.dataTransfer.files[0]); });
-  inp.addEventListener('change', () => { if(inp.files[0]) onFile(inp.files[0]); });
-}
-setupDrop(document.getElementById('spriteDrp'), document.getElementById('spriteIn'), loadSprite);
-setupDrop(document.getElementById('jsonDrp'),   document.getElementById('jsonIn'),   loadJSON);
-
-function loadSprite(file) {
-  const drp = document.getElementById('spriteDrp');
-  drp.querySelector('.lb').textContent = 'Loading...';
-  const url = URL.createObjectURL(file);
-  const img = new Image();
-  img.onload = () => {
-    state.spriteImg = img; state.spriteW = img.width; state.spriteH = img.height;
-    extractAlpha(img);
-    drp.classList.add('ok');
-    drp.querySelector('.lb').textContent = `${file.name} (${img.width}×${img.height})`;
-    setStatus('sprite loaded', 'ok');
-    buildMeshBtn.disabled = !state.poseData;
-    renderSetup(); drawFrame();
-  };
-  img.onerror = () => setStatus('failed to load image', 'err');
-  img.src = url;
-}
-
-function loadJSON(file) {
-  const drp = document.getElementById('jsonDrp');
-  const reader = new FileReader();
-  reader.onload = e => {
-    try {
-      const data = JSON.parse(e.target.result);
-      if (!data.frames || !data.fps) throw new Error('missing frames/fps');
-      state.poseData = data;
-      state.poseData.mirrored = data.frames.map(mirrorFrame);
-      drp.classList.add('ok');
-      drp.querySelector('.lb').textContent = `${file.name} (${data.frameCount}f @ ${data.fps}fps)`;
-      timeline.max = data.frameCount - 1; timeline.value = 0;
-      frameLabel.textContent = `1 / ${data.frameCount}`;
-      const rf = document.getElementById('refFrame');
-      rf.max = data.frames.length - 1; rf.value = 0;
-      document.getElementById('refFrameV').textContent = '0';
-      setStatus(`pose loaded: ${data.frameCount} frames`, 'ok');
-      buildMeshBtn.disabled = !state.spriteImg;
-    } catch(err) { setStatus('invalid JSON: '+err.message, 'err'); }
-  };
-  reader.readAsText(file);
-}
-
-function mirrorFrame(frame) {
-  return MIRROR_IDX.map(i => ({ x: 1 - frame[i].x, y: frame[i].y, v: frame[i].v }));
-}
-
-// ─── Alpha ─────────────────────────────────────────────────────────────────────
-function extractAlpha(img) {
-  const oc = document.createElement('canvas');
-  oc.width = img.width; oc.height = img.height;
-  const ox = oc.getContext('2d'); ox.drawImage(img, 0, 0);
-  const d = ox.getImageData(0, 0, img.width, img.height).data;
-  state.alphaMap = new Uint8Array(img.width * img.height);
-  for (let i = 0; i < state.alphaMap.length; i++) state.alphaMap[i] = d[i*4+3];
-}
-
-// ─── Canvas sizing ────────────────────────────────────────────────────────────
-let viewScale = 1, viewOffX = 0, viewOffY = 0;
-function renderSetup() {
-  if (!state.spriteImg) return;
-  const ww = wrap.clientWidth, wh = wrap.clientHeight;
-  canvas.width = ww; canvas.height = wh;
-  const vw = state.spriteW + 2*CANVAS_PAD, vh = state.spriteH + 2*CANVAS_PAD;
-  const s = Math.min(ww / vw, wh / vh) * 0.95;
-  viewScale = s;
-  viewOffX = (ww - vw * s) / 2 + CANVAS_PAD * s;
-  viewOffY = (wh - vh * s) / 2 + CANVAS_PAD * s;
-}
-window.addEventListener('resize', () => { renderSetup(); drawFrame(); });
-
-// ─── Joint UI ─────────────────────────────────────────────────────────────────
-function buildJointChips() {
-  const cont = document.getElementById('jointChips');
-  cont.innerHTML = '';
-  J_NAMES.forEach((name, i) => {
-    const chip = document.createElement('span');
-    chip.className = 'joint-chip' + (state.selectedJoint === i ? ' sel' : '');
-    if (state.selectedJoint === i) chip.style.borderColor = J_COLORS[i];
-    chip.textContent = name;
-    chip.onclick = () => { state.selectedJoint = (state.selectedJoint === i) ? -1 : i; buildJointChips(); drawFrame(); };
-    cont.appendChild(chip);
+// ── Bone selector grid ────────────────────────────────────────────────────
+(function buildBoneGrid() {
+  const grid = $('bone-grid');
+  BONE_NAMES.forEach((name, i) => {
+    const [r,g,b] = BONE_COLORS[i];
+    const lum = 0.299*r + 0.587*g + 0.114*b;
+    const btn = document.createElement('button');
+    btn.className = 'bone-btn' + (i === S.activeBone ? ' active' : '');
+    btn.textContent = name;
+    btn.style.background = toHex(r,g,b);
+    btn.style.color = lum > 140 ? '#000' : '#fff';
+    btn.dataset.boneId = i;
+    btn.addEventListener('click', () => {
+      S.activeBone = i;
+      document.querySelectorAll('.bone-btn').forEach((b,j) =>
+        b.classList.toggle('active', j === i));
+    });
+    grid.appendChild(btn);
   });
-}
-buildJointChips();
+})();
 
-document.getElementById('resetJoints').addEventListener('click', () => {
-  state.joints = DEFAULT_JOINTS.map(j=>({...j}));
-  state.boneCanvases = null; state.frames = []; exportBtn.disabled = true;
-  drawFrame();
-});
-
-// ─── Canvas mouse ──────────────────────────────────────────────────────────────
-let dragging = -1;
-canvas.addEventListener('mousedown', e => {
-  if (!state.spriteImg) return;
-  const {sx, sy} = c2s(e.offsetX, e.offsetY);
-  let best = -1, bestD = 20 / viewScale;
-  state.joints.forEach((j, i) => {
-    const d = Math.hypot(j.x * state.spriteW - sx, j.y * state.spriteH - sy);
-    if (d < bestD) { bestD = d; best = i; }
-  });
-  if (best >= 0) { dragging = best; state.selectedJoint = best; buildJointChips(); }
-});
-canvas.addEventListener('mousemove', e => {
-  if (dragging < 0 || !state.spriteImg) return;
-  const {sx, sy} = c2s(e.offsetX, e.offsetY);
-  state.joints[dragging] = {
-    x: Math.max(0, Math.min(1, sx / state.spriteW)),
-    y: Math.max(0, Math.min(1, sy / state.spriteH))
-  };
-  if (dragging !== J.NECK) state.joints[J.NECK] = midpoint(state.joints[J.LS], state.joints[J.RS]);
-  if (dragging !== J.PELVIS) state.joints[J.PELVIS] = midpoint(state.joints[J.LH], state.joints[J.RH]);
-  if (state.boneCanvases) { state.boneCanvases = null; state.frames = []; exportBtn.disabled = true; }
-  drawFrame();
-});
-canvas.addEventListener('mouseup', () => dragging = -1);
-canvas.addEventListener('mouseleave', () => dragging = -1);
-
-function c2s(cx, cy) { return { sx:(cx-viewOffX)/viewScale, sy:(cy-viewOffY)/viewScale }; }
-function midpoint(a, b) { return { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }; }
-
-// ─── Tabs ─────────────────────────────────────────────────────────────────────
-document.querySelectorAll('.tab').forEach(tab => {
-  tab.onclick = () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-    tab.classList.add('active');
-    document.getElementById('tab-'+tab.dataset.tab).classList.add('active');
-  };
-});
-
-// ─── Sliders ──────────────────────────────────────────────────────────────────
-function bindSlider(id, valId, fmt, onChange) {
-  const sl = document.getElementById(id), vl = document.getElementById(valId);
+// ── Slider value labels ───────────────────────────────────────────────────
+function bindLabel(slId, valId, fmt) {
+  const sl = $(slId), vl = $(valId);
   vl.textContent = fmt(sl.value);
-  sl.addEventListener('input', () => { vl.textContent = fmt(sl.value); if(onChange) onChange(); });
+  sl.addEventListener('input', () => { vl.textContent = fmt(sl.value); });
 }
-bindSlider('refFrame','refFrameV', v => v);
-bindSlider('dilation','dilationV', v => v+'px');
-bindSlider('yScale','yScaleV', v => (v/100).toFixed(2));
-bindSlider('showSkel','showSkelV', v => +v?'on':'off', drawFrame);
-bindSlider('showBones','showBonesV', v => +v?'on':'off', drawFrame);
-bindSlider('expCols','expColsV', v => v);
-bindSlider('expScale','expScaleV', v => v+'×');
+bindLabel('brush-sl',  'brush-val',  v => Math.round(v));
+bindLabel('damp-sl',   'damp-val',   v => parseFloat(v).toFixed(2));
+bindLabel('maxang-sl', 'maxang-val', v => parseFloat(v).toFixed(2));
+bindLabel('yscale-sl', 'yscale-val', v => parseFloat(v).toFixed(2));
+bindLabel('dil-sl',    'dil-val',    v => Math.round(v));
 
-// ─── Segmentation ─────────────────────────────────────────────────────────────
-function segBoneXY(x, y, jp) {
-  const neckY = jp[J.NECK].y;
-  const lSX = jp[J.LS].x, rSX = jp[J.RS].x;
-  const lHX = jp[J.LH].x, rHX = jp[J.RH].x;
-
-  function segDist(ax, ay, bx, by) {
-    const dx=bx-ax, dy=by-ay, l2=dx*dx+dy*dy;
-    if (l2 < 1) return Math.hypot(x-ax, y-ay);
-    const t = Math.max(0, Math.min(1, ((x-ax)*dx+(y-ay)*dy)/l2));
-    return Math.hypot(x-(ax+t*dx), y-(ay+t*dy));
-  }
-
-  if (y <= neckY) return 0;
-
-  const dTorso = segDist(jp[J.PELVIS].x,jp[J.PELVIS].y, jp[J.NECK].x,jp[J.NECK].y);
-  const dUAL   = segDist(jp[J.LS].x,jp[J.LS].y, jp[J.LE].x,jp[J.LE].y);
-  const dFAL   = segDist(jp[J.LE].x,jp[J.LE].y, jp[J.LW].x,jp[J.LW].y);
-  const dUAR   = segDist(jp[J.RS].x,jp[J.RS].y, jp[J.RE].x,jp[J.RE].y);
-  const dFAR   = segDist(jp[J.RE].x,jp[J.RE].y, jp[J.RW].x,jp[J.RW].y);
-  const dTL    = segDist(jp[J.LH].x,jp[J.LH].y, jp[J.LK].x,jp[J.LK].y);
-  const dSL    = segDist(jp[J.LK].x,jp[J.LK].y, jp[J.LA].x,jp[J.LA].y);
-  const dTR    = segDist(jp[J.RH].x,jp[J.RH].y, jp[J.RK].x,jp[J.RK].y);
-  const dSR    = segDist(jp[J.RK].x,jp[J.RK].y, jp[J.RA].x,jp[J.RA].y);
-
-  const torsoLeft = Math.min(lSX, lHX), torsoRight = Math.max(rSX, rHX);
-  const inTorso = x >= torsoLeft && x <= torsoRight;
-  const dToLS = Math.hypot(x - jp[J.LS].x, y - jp[J.LS].y);
-  const dToRS = Math.hypot(x - jp[J.RS].x, y - jp[J.RS].y);
-  const nearShoulder = Math.min(dToLS, dToRS) < 55;
-  const adjTorso = (inTorso && !nearShoulder) ? dTorso * 0.6 : dTorso;
-
-  const scores  = [adjTorso, dUAL, dFAL, dUAR, dFAR, dTL, dSL, dTR, dSR];
-  const boneIds = [1,        2,    3,    4,    5,    6,   7,   8,   9];
-  const minS = Math.min(...scores);
-  return boneIds[scores.indexOf(minS)];
-}
-
-// ─── Build bone cutouts ──────────────────────────────────────────────────────
-function buildBoneImages(sp, dilation) {
-  const W = state.spriteW, H = state.spriteH;
-
-  // Get sprite pixel data
-  const spriteCanvas = document.createElement('canvas');
-  spriteCanvas.width = W; spriteCanvas.height = H;
-  const sctx = spriteCanvas.getContext('2d');
-  sctx.drawImage(state.spriteImg, 0, 0);
-  const spriteData = sctx.getImageData(0, 0, W, H);
-  const srcPixels = spriteData.data;
-
-  // Assign every opaque pixel to a bone
-  const boneAssign = new Uint8Array(W * H).fill(255);
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const i = y * W + x;
-      if (state.alphaMap[i] > 10) {
-        boneAssign[i] = segBoneXY(x, y, sp);
-      }
-    }
-  }
-
-  // For each bone, create a dilated mask then extract pixels
-  const boneCanvases = {};
-  for (let boneId = 0; boneId < 10; boneId++) {
-    // Binary mask for this bone
-    let mask = new Uint8Array(W * H);
-    for (let i = 0; i < W * H; i++) {
-      if (boneAssign[i] === boneId) mask[i] = 1;
-    }
-
-    // Dilate the mask N times (3x3 max filter)
-    for (let d = 0; d < dilation; d++) {
-      const next = new Uint8Array(mask);
-      for (let y = 0; y < H; y++) {
-        for (let x = 0; x < W; x++) {
-          if (mask[y * W + x]) continue; // already filled
-          // Check 8-neighbors
-          let found = false;
-          for (let dy = -1; dy <= 1 && !found; dy++) {
-            for (let dx = -1; dx <= 1 && !found; dx++) {
-              const nx = x + dx, ny = y + dy;
-              if (nx >= 0 && nx < W && ny >= 0 && ny < H && mask[ny * W + nx]) {
-                found = true;
-              }
-            }
-          }
-          if (found) next[y * W + x] = 1;
-        }
-      }
-      mask = next;
-    }
-
-    // Create bone canvas: sprite pixels where (dilated mask AND sprite alpha > 0)
-    const bc = document.createElement('canvas');
-    bc.width = W; bc.height = H;
-    const bctx = bc.getContext('2d');
-    const boneData = bctx.createImageData(W, H);
-    const bp = boneData.data;
-    for (let i = 0; i < W * H; i++) {
-      if (mask[i] && state.alphaMap[i] > 10) {
-        const si = i * 4;
-        bp[si]     = srcPixels[si];
-        bp[si + 1] = srcPixels[si + 1];
-        bp[si + 2] = srcPixels[si + 2];
-        bp[si + 3] = srcPixels[si + 3];
-      }
-    }
-    bctx.putImageData(boneData, 0, 0);
-    boneCanvases[boneId] = bc;
-  }
-
-  return boneCanvases;
-}
-
-// ─── FK ─────────────────────────────────────────────────────────────────────
-function boneAngle(joints, p, e) {
-  return Math.atan2(joints[e].y - joints[p].y, joints[e].x - joints[p].x);
-}
-function angleDelta(ref, frame, p, e) {
-  if ((frame[p] && frame[p].v === 0) || (frame[e] && frame[e].v === 0)) return 0;
-  if ((ref[p]   && ref[p].v   === 0) || (ref[e]   && ref[e].v   === 0)) return 0;
-  let d = boneAngle(frame, p, e) - boneAngle(ref, p, e);
-  while (d >  Math.PI) d -= 2*Math.PI;
-  while (d < -Math.PI) d += 2*Math.PI;
-  d *= ANGLE_DAMP;
-  d = Math.max(-MAX_ANGLE, Math.min(MAX_ANGLE, d));
-  return d;
-}
-
-function computeFK(frameMotion, sp) {
-  const refIdx = Math.min(parseInt(document.getElementById('refFrame').value) || 0, state.poseData.mirrored.length - 1);
-  const ref = state.poseData.mirrored[refIdx];
-  const H = state.spriteH;
-  const yScaleFactor = parseFloat(document.getElementById('yScale').value) / 100;
-  const yDelta = (frameMotion[J.PELVIS].y - ref[J.PELVIS].y) * H * yScaleFactor;
-
-  const nj = sp.map(p => ({x:p.x, y:p.y + yDelta}));
-
-  function fk(par, child, delta) {
-    const ox = sp[child].x - sp[par].x, oy = sp[child].y - sp[par].y;
-    const c = Math.cos(delta), s = Math.sin(delta);
-    nj[child] = { x: nj[par].x + ox*c - oy*s, y: nj[par].y + ox*s + oy*c };
-  }
-
-  fk(J.PELVIS, J.NECK,  angleDelta(ref, frameMotion, J.PELVIS, J.NECK));
-  fk(J.PELVIS, J.LH,    angleDelta(ref, frameMotion, J.PELVIS, J.LH));
-  fk(J.PELVIS, J.RH,    angleDelta(ref, frameMotion, J.PELVIS, J.RH));
-  fk(J.NECK,   J.HEAD,  angleDelta(ref, frameMotion, J.NECK,   J.HEAD));
-  // Shoulders: fixed at rest-pose offset from NECK (NECK→LS/RS angle is unstable
-  // in 2D projection — both shoulders can appear near the neck causing false large swings)
-  nj[J.LS] = { x: nj[J.NECK].x + (sp[J.LS].x - sp[J.NECK].x), y: nj[J.NECK].y + (sp[J.LS].y - sp[J.NECK].y) };
-  nj[J.RS] = { x: nj[J.NECK].x + (sp[J.RS].x - sp[J.NECK].x), y: nj[J.NECK].y + (sp[J.RS].y - sp[J.NECK].y) };
-  fk(J.LS,     J.LE,    angleDelta(ref, frameMotion, J.LS,     J.LE));
-  fk(J.RS,     J.RE,    angleDelta(ref, frameMotion, J.RS,     J.RE));
-  fk(J.LE,     J.LW,    angleDelta(ref, frameMotion, J.LE,     J.LW));
-  fk(J.RE,     J.RW,    angleDelta(ref, frameMotion, J.RE,     J.RW));
-  // Leg bones: negate the angle delta so sagittal (forward/backward) swing from the
-  // side-view maps to inward convergence on the front-facing sprite (crossing-over gait)
-  // rather than lateral spreading (jumping-jacks). The side-view X-displacement is depth
-  // (Z-axis) when re-projected to front view, which should NOT produce lateral rotation.
-  fk(J.LH,     J.LK,   -angleDelta(ref, frameMotion, J.LH,     J.LK));
-  fk(J.RH,     J.RK,   -angleDelta(ref, frameMotion, J.RH,     J.RK));
-  fk(J.LK,     J.LA,   -angleDelta(ref, frameMotion, J.LK,     J.LA));
-  fk(J.RK,     J.RA,   -angleDelta(ref, frameMotion, J.RK,     J.RA));
-
-  // Leg bones (indices 6-9: thighL, shinL, thighR, shinR) are negated to produce
-  // correct inward crossing from side-view sagittal data (see leg FK calls above).
-  const boneDeltas = BONE_DEFS.map((bd, i) => {
-    const d = angleDelta(ref, frameMotion, bd.pivot, bd.end);
-    return (i >= 6 && i <= 9) ? -d : d;
+// ── Drop zone wiring ──────────────────────────────────────────────────────
+function wireDropZone(zoneId, inputId, handler) {
+  const zone = $(zoneId), inp = $(inputId);
+  zone.addEventListener('click', e => { if (e.target === inp) return; inp.value=''; inp.click(); });
+  zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', ()  => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) handler(e.dataTransfer.files[0]);
   });
-  return {nj, boneDeltas};
+  inp.addEventListener('change', () => { if (inp.files[0]) handler(inp.files[0]); });
 }
+// Handlers wired in later steps – placeholders keep drop zones functional now
+wireDropZone('sprite-drop', 'sprite-file-in', f => loadSprite(f));
+wireDropZone('json-drop',   'json-file-in',   f => loadJSON(f));
 
-// ─── Build all frames ─────────────────────────────────────────────────────────
-async function buildBones() {
-  if (!state.spriteImg || !state.poseData) return;
-  buildMeshBtn.disabled = true;
-  exportBtn.disabled = true;
-  setStatus('segmenting bones...', '');
-  buildPrgF.style.width = '5%';
-  await sleep(10);
+// ── Menu wiring ────────────────────────────────────────────────────────────
+$('m-open-sprite').addEventListener('click',  () => { $('menu-sprite-in').value=''; $('menu-sprite-in').click(); });
+$('m-open-json'  ).addEventListener('click',  () => { $('menu-json-in'  ).value=''; $('menu-json-in'  ).click(); });
+$('m-export-gif'   ).addEventListener('click', () => exportGIF());
+$('m-export-frames').addEventListener('click', () => exportFrames());
+$('m-quit'         ).addEventListener('click', () => window.close());
+$('menu-sprite-in').addEventListener('change', function(){ if(this.files[0]) loadSprite(this.files[0]); });
+$('menu-json-in'  ).addEventListener('change', function(){ if(this.files[0]) loadJSON(this.files[0]);   });
 
-  const dilation = parseInt(document.getElementById('dilation').value);
-  const W = state.spriteW, H = state.spriteH;
-  const sp = state.joints.map(j => ({x: j.x*W, y: j.y*H}));
-
-  // Build per-bone cutout canvases
-  state.boneCanvases = buildBoneImages(sp, dilation);
-  buildPrgF.style.width = '30%';
-  meshInfo.textContent = `10 bone cutouts (${dilation}px dilation)`;
-  await sleep(10);
-
-  // Precompute FK for all frames
-  setStatus('computing animation...', '');
-  const allFrames = [];
-  const totalFrames = state.poseData.mirrored.length;
-  for (let fi = 0; fi < totalFrames; fi++) {
-    if (fi % 4 === 0) { buildPrgF.style.width = (30 + 65*fi/totalFrames)+'%'; await sleep(0); }
-    const {nj, boneDeltas} = computeFK(state.poseData.mirrored[fi], sp);
-    allFrames.push({nj, boneDeltas});
-  }
-
-  state.frames = allFrames;
-  state.spPx = sp; // cache original joint positions in pixels
-  state.currentFrame = 0;
-  buildPrgF.style.width = '100%';
-  await sleep(50); buildPrgF.style.width = '0';
-
-  timeline.max = totalFrames - 1; timeline.value = 0;
-  frameLabel.textContent = `1 / ${totalFrames}`;
-  buildMeshBtn.disabled = false;
-  exportBtn.disabled = false;
-  setStatus(`animated: ${totalFrames} frames (rigid bones)`, 'ok');
-  drawFrame();
-}
-buildMeshBtn.addEventListener('click', buildBones);
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-// ─── Rigid bone rendering ────────────────────────────────────────────────────
-function renderFrameRigid(fctx, fi, W, H) {
-  const pad = CANVAS_PAD;
-  const OW = W + 2*pad, OH = H + 2*pad;
-  fctx.clearRect(0, 0, OW, OH);
-  fctx.imageSmoothingEnabled = true;
-  fctx.imageSmoothingQuality = 'high';
-
-  const fd = state.frames[fi];
-  const sp = state.spPx;
-  const showBones = parseInt(document.getElementById('showBones').value);
-
-  for (const boneId of DRAW_ORDER) {
-    const bd = BONE_DEFS[boneId];
-    const angle = fd.boneDeltas[boneId];
-    const px = sp[bd.pivot].x, py = sp[bd.pivot].y;
-    const npx = fd.nj[bd.pivot].x, npy = fd.nj[bd.pivot].y;
-
-    if (showBones) {
-      // Debug: draw colored bone region
-      fctx.save();
-      fctx.globalAlpha = 0.6;
-      fctx.translate(npx + pad, npy + pad);
-      fctx.rotate(angle);
-      fctx.translate(-px, -py);
-      // Tint the bone canvas
-      fctx.drawImage(state.boneCanvases[boneId], 0, 0);
-      fctx.globalCompositeOperation = 'source-atop';
-      fctx.fillStyle = BONE_DBG_COLORS[boneId];
-      fctx.fillRect(0, 0, W, H);
-      fctx.restore();
-    } else {
-      fctx.save();
-      fctx.translate(npx + pad, npy + pad);
-      fctx.rotate(angle);
-      fctx.translate(-px, -py);
-      fctx.drawImage(state.boneCanvases[boneId], 0, 0);
-      fctx.restore();
-    }
-  }
-}
-
-function drawFrame() {
-  const W = canvas.width, H = canvas.height;
-  ctx.clearRect(0, 0, W, H);
-
-  if (!state.spriteImg) {
-    ctx.fillStyle = '#111'; ctx.fillRect(0,0,W,H);
-    ctx.fillStyle = '#5a5a78'; ctx.font='12px monospace'; ctx.textAlign='center';
-    ctx.fillText('Drop sprite PNG and pose JSON to begin', W/2, H/2);
-    return;
-  }
-
-  ctx.save();
-  ctx.translate(viewOffX, viewOffY);
-  ctx.scale(viewScale, viewScale);
-
-  if (!state.boneCanvases || !state.frames.length) {
-    ctx.drawImage(state.spriteImg, 0, 0);
-    drawSkeleton(state.joints.map(j=>({x:j.x*state.spriteW, y:j.y*state.spriteH})), true);
-    ctx.restore(); return;
-  }
-
-  // Render the rigid bone frame
-  const pad = CANVAS_PAD;
-  const fc = document.createElement('canvas');
-  fc.width = state.spriteW + 2*pad; fc.height = state.spriteH + 2*pad;
-  renderFrameRigid(fc.getContext('2d'), state.currentFrame, state.spriteW, state.spriteH);
-  ctx.drawImage(fc, -pad, -pad);
-
-  const fd = state.frames[state.currentFrame];
-  if (+document.getElementById('showSkel').value) drawSkeleton(fd.nj, false);
-  drawJointHandle(fd.nj);
-
-  ctx.restore();
-}
-
-function drawSkeleton(jp, interactive) {
-  const pairs = [[J.NECK,J.HEAD],[J.NECK,J.LS],[J.NECK,J.RS],[J.LS,J.LE],[J.LE,J.LW],
-                 [J.RS,J.RE],[J.RE,J.RW],[J.PELVIS,J.NECK],[J.PELVIS,J.LH],[J.PELVIS,J.RH],
-                 [J.LH,J.LK],[J.LK,J.LA],[J.RH,J.RK],[J.RK,J.RA]];
-  ctx.lineWidth = 1.5;
-  pairs.forEach(([a,b]) => {
-    if (!jp[a]||!jp[b]) return;
-    ctx.beginPath(); ctx.moveTo(jp[a].x,jp[a].y); ctx.lineTo(jp[b].x,jp[b].y);
-    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.stroke();
+// ── Pane sash resize ──────────────────────────────────────────────────────
+(function() {
+  const sash = $('sash'), left = $('left-pane'), main = $('main');
+  let dragging = false;
+  sash.addEventListener('mousedown', e => { dragging = true; e.preventDefault(); });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const rect = main.getBoundingClientRect();
+    const w = Math.max(240, Math.min(e.clientX - rect.left, rect.width - 260));
+    left.style.width = w + 'px';
   });
-  jp.forEach((p,i) => {
-    if (!p) return;
-    ctx.beginPath(); ctx.arc(p.x, p.y, interactive ? 5/viewScale : 3, 0, Math.PI*2);
-    ctx.fillStyle = J_COLORS[i]; ctx.fill();
-    if (state.selectedJoint === i) {
-      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
-    }
-  });
-}
+  document.addEventListener('mouseup', () => { dragging = false; });
+})();
 
-function drawJointHandle(jp) {
-  if (state.selectedJoint < 0) return;
-  const p = jp[state.selectedJoint]; if (!p) return;
-  ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI*2);
-  ctx.strokeStyle = J_COLORS[state.selectedJoint]; ctx.lineWidth = 1.5; ctx.stroke();
-}
-
-// ─── Playback ──────────────────────────────────────────────────────────────────
-playBtn.addEventListener('click', () => {
-  if (!state.frames.length) return;
-  state.playing = !state.playing;
-  playBtn.textContent = state.playing ? '⏸' : '▶';
-  if (state.playing) scheduleNext();
-});
-function scheduleNext() {
-  if (!state.playing) return;
-  const fps = state.poseData?.fps || 16;
-  setTimeout(() => {
-    if (!state.playing) return;
-    state.currentFrame = (state.currentFrame + 1) % state.frames.length;
-    timeline.value = state.currentFrame;
-    frameLabel.textContent = `${state.currentFrame+1} / ${state.frames.length}`;
-    drawFrame(); scheduleNext();
-  }, 1000/fps);
-}
-timeline.addEventListener('input', () => {
-  state.currentFrame = parseInt(timeline.value);
-  frameLabel.textContent = `${state.currentFrame+1} / ${state.poseData?.frameCount||0}`;
-  drawFrame();
+// ── Auto-assign / overlay checkbox stubs ─────────────────────────────────
+$('auto-assign-btn').addEventListener('click', () => autoAssign());
+$('overlay-chk').addEventListener('change', e => {
+  S.showOverlay = e.target.checked;
+  refreshEditor();
 });
 
-// ─── Export ────────────────────────────────────────────────────────────────────
-exportBtn.addEventListener('click', async () => {
-  if (!state.frames.length) return;
-  exportBtn.disabled = true;
-  setStatus('computing crop bounds...', '');
-  await sleep(10);
+// ── Preview canvas – responsive sizing via ResizeObserver ─────────────────
+const previewCanvas = $('preview-canvas');
+const previewCtx    = previewCanvas.getContext('2d');
 
-  const n = state.frames.length;
-  const pad = CANVAS_PAD;
-  const W = state.spriteW, H = state.spriteH;
-  const fullW = W + 2*pad, fullH = H + 2*pad;
+function resizePreviewCanvas() {
+  const pSec      = $('preview-section');
+  const transport = $('transport');
+  const header    = $('preview-header');
+  const cw = pSec.clientWidth;
+  const ch = pSec.clientHeight - transport.offsetHeight - header.offsetHeight;
+  previewCanvas.width  = Math.max(1, cw);
+  previewCanvas.height = Math.max(1, ch);
+}
 
-  // Find global content bounding box by rendering one temp frame
-  // and checking actual pixel content for each frame
-  // For speed, estimate from joint positions + sprite size
-  let gMinX = fullW, gMinY = fullH, gMaxX = 0, gMaxY = 0;
-  const sp = state.spPx;
-  const spriteR = Math.max(W, H); // conservative radius
-  for (let fi = 0; fi < n; fi++) {
-    const fd = state.frames[fi];
-    for (let ji = 0; ji < 15; ji++) {
-      const jx = fd.nj[ji].x + pad, jy = fd.nj[ji].y + pad;
-      if (jx - spriteR/3 < gMinX) gMinX = jx - spriteR/3;
-      if (jy - spriteR/3 < gMinY) gMinY = jy - spriteR/3;
-      if (jx + spriteR/3 > gMaxX) gMaxX = jx + spriteR/3;
-      if (jy + spriteR/3 > gMaxY) gMaxY = jy + spriteR/3;
-    }
+new ResizeObserver(() => { resizePreviewCanvas(); drawPreview(); })
+  .observe($('preview-section'));
+
+function drawPreview() {
+  // Implemented in Step 4 – placeholder draws a message
+  resizePreviewCanvas();
+  const cv = previewCanvas;
+  previewCtx.fillStyle = '#0d0d1a';
+  previewCtx.fillRect(0, 0, cv.width, cv.height);
+  if (!S.spriteImg || !S.frames) {
+    previewCtx.fillStyle = '#4060a0';
+    previewCtx.font = '12px monospace';
+    previewCtx.textAlign = 'center';
+    previewCtx.fillText('Load sprite + JSON to preview', cv.width/2, cv.height/2);
   }
-  const margin = 20;
-  gMinX = Math.max(0, Math.floor(gMinX) - margin);
-  gMinY = Math.max(0, Math.floor(gMinY) - margin);
-  gMaxX = Math.min(fullW, Math.ceil(gMaxX) + margin);
-  gMaxY = Math.min(fullH, Math.ceil(gMaxY) + margin);
-  const cropW = gMaxX - gMinX, cropH = gMaxY - gMinY;
+}
 
-  let cols = parseInt(document.getElementById('expCols').value);
-  let scale = parseInt(document.getElementById('expScale').value);
-  const MAX_DIM = 32767, MAX_PX = 500_000_000;
-  // If height exceeds limit, INCREASE cols (more columns = fewer rows = shorter height)
-  while (Math.ceil(n/cols)*cropH*scale > MAX_DIM) cols++;
-  // If width exceeds limit, reduce scale
-  while (scale > 1 && cols*cropW*scale > MAX_DIM) scale--;
-  // Total pixel safety limit — reduce scale
-  while (scale > 1 && cols*cropW*scale * Math.ceil(n/cols)*cropH*scale > MAX_PX) scale--;
-  const rows = Math.ceil(n/cols);
-  const sheetW = cols*cropW*scale, sheetH = rows*cropH*scale;
-  setStatus(`export: ${sheetW}×${sheetH} (${cols}col × ${rows}row)`, '');
-  await sleep(10);
+// ── Stub functions filled in subsequent steps ─────────────────────────────
+function loadSprite(file)  { setStatus('loadSprite – wired in Step 2: ' + file.name); }
+function loadJSON(file)    { setStatus('loadJSON – wired in Step 2: '   + file.name); }
+function autoAssign()      { setStatus('autoAssign – wired in Step 2'); }
+function refreshEditor()   { /* Step 3 */ }
+function exportGIF()       { setStatus('Export GIF – wired in Step 6'); }
+function exportFrames()    { setStatus('Export Frames – wired in Step 6'); }
 
-  const oc = document.createElement('canvas');
-  oc.width = sheetW; oc.height = sheetH;
-  if (oc.width < 1 || oc.height < 1) { setStatus('export canvas too large', 'err'); exportBtn.disabled=false; return; }
-  const ox = oc.getContext('2d');
-
-  const fc = document.createElement('canvas'); fc.width = fullW; fc.height = fullH;
-  const fctx = fc.getContext('2d');
-
-  for (let fi = 0; fi < n; fi++) {
-    if (fi % 2 === 0) { setStatus(`exporting ${fi+1}/${n}...`); await sleep(0); }
-    renderFrameRigid(fctx, fi, W, H);
-    const destX = (fi % cols) * cropW * scale;
-    const destY = Math.floor(fi / cols) * cropH * scale;
-    ox.drawImage(fc, gMinX, gMinY, cropW, cropH, destX, destY, cropW*scale, cropH*scale);
-  }
-
-  setStatus('encoding PNG...', '');
-  await sleep(10);
-  oc.toBlob(blob => {
-    if (!blob) { setStatus('export failed (blob null)', 'err'); exportBtn.disabled=false; return; }
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `spritesheet_${n}f_${cols}col.png`;
-    a.click();
-    exportBtn.disabled = false;
-    setStatus(`exported ${sheetW}×${sheetH} sprite sheet`, 'ok');
-  });
-});
-
-// ─── Init ─────────────────────────────────────────────────────────────────────
-renderSetup();
-drawFrame();
+// ── Init ──────────────────────────────────────────────────────────────────
+drawPreview();
+setStatus('Step 1 complete – UI shell ready');
 </script>
 </body>
 </html>
